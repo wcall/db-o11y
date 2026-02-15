@@ -1,0 +1,73 @@
+version: "3.8"
+
+# Note: .env file is located in parent directory
+# Run with: docker compose --env-file ../.env up
+
+services:
+  mysql:
+    image: mysql:8
+    container_name: db-o11y-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./my.cnf:/etc/mysql/conf.d/my.cnf:ro
+      - mysql_logs:/var/log/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    restart: always
+    networks:
+      - db-o11y-network
+
+  phpmyadmin:
+    image: phpmyadmin
+    container_name: db-o11y-phpmyadmin
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: mysql
+      PMA_USER: root
+      PMA_PASSWORD: rootpass
+    depends_on:
+      - mysql
+    networks:
+      - db-o11y-network
+
+  alloy:
+    image: grafana/alloy:v1.13.0
+    container_name: db-o11y-alloy
+    environment:
+      - GCLOUD_PROMETHEUS_URL=${GCLOUD_PROMETHEUS_URL}
+      - GCLOUD_PROMETHEUS_USERNAME=${GCLOUD_PROMETHEUS_USERNAME}
+      - GCLOUD_PROMETHEUS_PASSWORD=${GCLOUD_PROMETHEUS_PASSWORD}
+      - GCLOUD_LOKI_URL=${GCLOUD_LOKI_URL}
+      - GCLOUD_LOKI_USERNAME=${GCLOUD_LOKI_USERNAME}
+      - GCLOUD_LOKI_PASSWORD=${GCLOUD_LOKI_PASSWORD}
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy
+    ports:
+      - "12345:12345"
+    command: run --server.http.listen-addr=0.0.0.0:12345 --stability.level=public-preview --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - db-o11y-network
+
+networks:
+  db-o11y-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  mysql_logs:

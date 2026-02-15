@@ -70,7 +70,7 @@ prometheus.scrape "postgresql_server" {
 
 prometheus.remote_write "metrics_service" {
   endpoint {
-    url = env("GCLOUD_PROMETHEUS_URL")
+    url = sys.env("GCLOUD_PROMETHEUS_URL")
 
     basic_auth {
       password = sys.env("GCLOUD_PROMETHEUS_PASSWORD")
@@ -81,7 +81,7 @@ prometheus.remote_write "metrics_service" {
 
 loki.write "logs_service" {
   endpoint {
-    url = env("GCLOUD_LOKI_URL")
+    url = sys.env("GCLOUD_LOKI_URL")
 
     basic_auth {
       password = sys.env("GCLOUD_LOKI_PASSWORD")

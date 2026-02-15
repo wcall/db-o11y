@@ -17,7 +17,7 @@ This Docker Compose setup runs PostgreSQL 15 with Grafana Alloy for database obs
 ### 1. Navigate to the postgresql directory
 
 ```bash
-cd /Users/wei-chincall/Workspace/grafana/db-o11y/postgresql
+cd <YourPath>/db-o11y/postgresql
 ```
 
 ### 2. Start all services

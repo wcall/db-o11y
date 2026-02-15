@@ -1,0 +1,87 @@
+logging {
+  level  = "debug"
+  format = "logfmt"
+}
+
+livedebugging {
+  enabled = true
+}
+
+prometheus.exporter.mysql "mysql_db_server" {
+  // data_source_name  = local.file.mysql_secret_db.content
+  data_source_name = "db-o11y:DBO11y-MySQL@tcp(mysql:3306)/"
+  enable_collectors = ["perf_schema.eventsstatements"]
+}
+
+database_observability.mysql "mysql_db_server" {
+  // data_source_name  = local.file.mysql_secret_db.content
+  data_source_name = "db-o11y:DBO11y-MySQL@tcp(mysql:3306)/"
+  forward_to        = [loki.write.logs_service.receiver]
+  targets           = prometheus.exporter.mysql.mysql_db_server.targets
+
+  // I added this part to enable more collectors 
+  enable_collectors = ["query_details", "schema_details", "query_samples", "explain_plans"]
+
+  // I added this part to allow query samples to show the un-redacted values, as in replacing ? marks with the real values
+  query_samples {
+    disable_query_redaction = true
+  }
+
+  // OPTIONAL: provide additional information specific to the cloud provider
+  // that hosts the database to enable certain infrastructure observability
+  // features. See documentation of `database_observability.mysql` for
+  // other cloud providers.
+  // cloud_provider {
+  //   aws {
+  //     arn = "<AWS_RDS_DB_ARN>"
+  //   }
+  // }
+}
+
+discovery.relabel "database_observability_mysql_db_server" {
+  targets = database_observability.mysql.mysql_db_server.targets
+
+  rule {
+    target_label = "job"
+    replacement  = "integrations/db-o11y"
+  }
+  rule {
+    target_label = "instance"
+    replacement  = "mysql-devdb"
+  }
+
+  // OPTIONAL: add any additional relabeling rules
+  // (must be consistent with rules in "loki.relabel")
+  // rule {
+  //  target_label = "instance"
+  //  replacement  = "<INSTANCE_LABEL>"
+  // }
+}
+
+prometheus.scrape "database_observability_mysql_db_server" {
+  // job_name = "integrations/db-o11y"
+  targets    = discovery.relabel.database_observability_mysql_db_server.output
+  forward_to = [prometheus.remote_write.metrics_service.receiver]
+}
+
+prometheus.remote_write "metrics_service" {
+  endpoint {
+    url = sys.env("GCLOUD_PROMETHEUS_URL")
+
+    basic_auth {
+      password = sys.env("GCLOUD_PROMETHEUS_PASSWORD")
+      username = sys.env("GCLOUD_PROMETHEUS_USERNAME")
+    }
+  }
+}
+
+loki.write "logs_service" {
+  endpoint {
+    url = sys.env("GCLOUD_LOKI_URL")
+
+    basic_auth {
+      password = sys.env("GCLOUD_LOKI_PASSWORD")
+      username = sys.env("GCLOUD_LOKI_USERNAME")
+    }
+  }
+}
