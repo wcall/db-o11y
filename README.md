@@ -8,6 +8,7 @@ This repository provides Docker Compose setups for monitoring **MySQL 8** and **
 - **PostgreSQL 15** - Full observability with pg_stat_statements and query tracking
 - **Grafana Alloy** - Modern telemetry collector for metrics and logs
 - **Management Tools** - phpMyAdmin for MySQL, pgAdmin for PostgreSQL
+- **k6 Load Testing** - Generate realistic database traffic for MySQL with Grafana Cloud k6 integration
 - **Production-Ready** - Environment-based configuration, health checks, and security best practices
 
 ---
@@ -168,6 +169,57 @@ docker compose --env-file ../.env up -d
 
 ---
 
+## 🚦 k6 Load Testing for MySQL
+
+Generate realistic database traffic to test MySQL performance and observability capabilities.
+
+### Features
+
+- 📊 **Realistic Query Patterns** - 60% SELECT, 15% INSERT, 15% UPDATE, 10% DELETE
+- 🔗 **Complex JOIN Queries** - INNER JOIN, LEFT JOIN, FULL OUTER JOIN simulations
+- ⏱️ **Configurable Load Stages** - 1-hour test with ramp-up, steady state, and spike testing
+- ☁️ **Grafana Cloud k6** - Local execution with cloud reporting and dashboards
+- 📈 **Custom Metrics** - Query duration, success rate, operation counters
+- 🎯 **Performance Thresholds** - p95 < 500ms, p99 < 1000ms, 95% success rate
+
+### Quick Start
+
+```bash
+cd mysql
+
+# Ensure directories exist
+mkdir -p scripts results
+
+# Start MySQL
+docker compose --env-file ../.env up -d mysql
+
+# Run k6 load test
+docker compose --env-file ../.env run --rm k6
+```
+
+### Query Patterns Tested
+
+- **Simple SELECTs** - All companies, by ID, by name pattern
+- **Aggregations** - COUNT, GROUP BY, AVG
+- **INNER JOINs** - Company-Employee relationships with aggregations
+- **LEFT JOINs** - All companies with optional employee data
+- **FULL OUTER JOINs** - Complete dataset including orphaned records
+- **Filtered JOINs** - Salary ranges, employee counts, HAVING clauses
+- **Write Operations** - INSERTs, UPDATEs, DELETEs with re-insertion
+
+### Observability Insights
+
+The load test helps you:
+1. 🔍 **Identify slow queries** in Database Observability dashboards
+2. 📊 **Analyze JOIN performance** under realistic load
+3. ⚡ **Detect bottlenecks** during peak traffic
+4. 📉 **Optimize query patterns** based on p95/p99 latencies
+5. 🎯 **Set performance baselines** for SLO/SLA definitions
+
+See [mysql/README.md](mysql/README.md#running-k6-load-tests) for detailed k6 setup and usage instructions.
+
+---
+
 ## 🗂️ Repository Structure
 
 ```
@@ -176,11 +228,18 @@ db-o11y/
 ├── .env.example                # Template for environment setup
 ├── .gitignore                  # Git ignore rules
 ├── README.md                   # This file
+├── k6/                         # k6 load testing (legacy)
+│   └── mysql-loadgen-with-gck6.js  # k6 script reference
 ├── mysql/                      # MySQL 8 setup
 │   ├── README.md               # MySQL-specific documentation
 │   ├── compose.yaml            # Docker Compose for MySQL stack
 │   ├── my.cnf                  # MySQL 8 configuration
 │   ├── init-mysql.md           # Database initialization guide
+│   ├── mysql-init/             # Database initialization scripts
+│   │   └── 01-create-table.sql # Creates company & employee tables
+│   ├── scripts/                # k6 load testing scripts
+│   │   └── mysql-loadgen-with-gck6.js  # MySQL load test script
+│   ├── results/                # k6 test results (gitignored)
 │   └── alloy/
 │       └── config.alloy        # Alloy configuration for MySQL
 └── postgresql/                 # PostgreSQL 15 setup

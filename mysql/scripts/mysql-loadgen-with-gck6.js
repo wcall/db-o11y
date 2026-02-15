@@ -171,6 +171,58 @@ function executeSelectQueries(db) {
       name: 'aggregate_query',
       query: 'SELECT LEFT(companyname, 1) as initial, COUNT(*) as count FROM company GROUP BY initial',
     },
+    {
+      name: 'inner_join_company_employee',
+      query: `SELECT c.companyid, c.companyname, e.employeeid, e.employeename, e.salary
+              FROM company c
+              INNER JOIN employee e ON c.companyid = e.companyid
+              ORDER BY c.companyname, e.employeename`,
+    },
+    {
+      name: 'inner_join_with_aggregation',
+      query: `SELECT c.companyid, c.companyname, COUNT(e.employeeid) as employee_count, AVG(e.salary) as avg_salary
+              FROM company c
+              INNER JOIN employee e ON c.companyid = e.companyid
+              GROUP BY c.companyid, c.companyname
+              ORDER BY avg_salary DESC`,
+    },
+    {
+      name: 'inner_join_high_salary',
+      query: `SELECT c.companyname, e.employeename, e.salary
+              FROM company c
+              INNER JOIN employee e ON c.companyid = e.companyid
+              WHERE e.salary > ?
+              ORDER BY e.salary DESC`,
+      params: [120000],
+    },
+    {
+      name: 'left_join_all_companies',
+      query: `SELECT c.companyid, c.companyname, e.employeeid, e.employeename, e.salary
+              FROM company c
+              LEFT JOIN employee e ON c.companyid = e.companyid
+              ORDER BY c.companyid`,
+    },
+    {
+      name: 'full_outer_join_simulation',
+      query: `SELECT c.companyid, c.companyname, e.employeeid, e.employeename, e.salary
+              FROM company c
+              LEFT JOIN employee e ON c.companyid = e.companyid
+              UNION
+              SELECT c.companyid, c.companyname, e.employeeid, e.employeename, e.salary
+              FROM company c
+              RIGHT JOIN employee e ON c.companyid = e.companyid
+              WHERE c.companyid IS NULL`,
+    },
+    {
+      name: 'inner_join_salary_range',
+      query: `SELECT c.companyname, COUNT(e.employeeid) as num_employees,
+              MIN(e.salary) as min_salary, MAX(e.salary) as max_salary
+              FROM company c
+              INNER JOIN employee e ON c.companyid = e.companyid
+              GROUP BY c.companyid, c.companyname
+              HAVING COUNT(e.employeeid) > ?`,
+      params: [1],
+    },
   ];
 
   const pattern = queryPatterns[Math.floor(Math.random() * queryPatterns.length)];
