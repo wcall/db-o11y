@@ -15,6 +15,7 @@ services:
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
+      - ./mysql-init:/docker-entrypoint-initdb.d:ro
       - mysql_data:/var/lib/mysql
       - ./my.cnf:/etc/mysql/conf.d/my.cnf:ro
       - mysql_logs:/var/log/mysql
@@ -63,6 +64,46 @@ services:
     restart: unless-stopped
     networks:
       - db-o11y-network
+
+  k6:
+    image: grafana/xk6:latest
+    container_name: db-o11y-k6
+    environment:
+      - K6_CLOUD_STACK_ID=${K6_CLOUD_STACK_ID}
+      - K6_CLOUD_TOKEN=${K6_CLOUD_TOKEN}
+      - K6_CLOUD_PROJECT_ID=${K6_CLOUD_PROJECT_ID}
+      - K6_MYSQL_HOST=mysql
+      - K6_MYSQL_PORT=3306
+      - K6_MYSQL_DATABASE=${K6_MYSQL_DATABASE:-super_awesome_application}
+      - K6_MYSQL_USER=${K6_MYSQL_USER:-k6user}
+      - K6_MYSQL_PASSWORD=${K6_MYSQL_PASSWORD:-k6userpass}
+    working_dir: /work
+    volumes:
+      - ./scripts:/work/scripts:ro
+      - ./results:/work/results
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo 'Building custom k6 with xk6-sql and mysql driver...'
+        xk6 build --with github.com/grafana/xk6-sql@latest --with github.com/grafana/xk6-sql-driver-mysql@latest --output /tmp/k6
+        chmod +x /tmp/k6
+        echo 'Ensuring results directory is writable...'
+        mkdir -p /work/results
+        echo 'Running k6 script...'
+        /tmp/k6 cloud run --local-execution \
+          --env K6_MYSQL_HOST \
+          --env K6_MYSQL_PORT \
+          --env K6_MYSQL_DATABASE \
+          --env K6_MYSQL_USER \
+          --env K6_MYSQL_PASSWORD \
+          /work/scripts/mysql-loadgen-with-gck6.js > /work/results/k6-output.log 2>&1
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - db-o11y-network
+    profiles:
+      - load-test
 
 networks:
   db-o11y-network:

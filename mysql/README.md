@@ -48,6 +48,120 @@ docker compose --env-file ../.env down -v
 
 ---
 
+## Running k6 Load Tests
+
+The compose stack includes a k6 service for load testing MySQL. The k6 service:
+- ✅ Uses the official `grafana/xk6:latest` image
+- ✅ Builds k6 with xk6-sql and MySQL driver extensions on-the-fly
+- ✅ Executes tests with local execution and cloud reporting
+- ✅ Saves results to `./results/` directory as JSON
+- ✅ Uses a profile (`load-test`) to prevent auto-start
+
+### Prerequisites
+
+1. **k6 Script Directory**: Create `./scripts/` directory and add your k6 script:
+   ```bash
+   mkdir -p scripts results
+   # Place mysql-loadgen-with-gck6.js in ./scripts/
+   ```
+
+2. **Environment Variables**: Ensure these are set in `../.env`:
+   ```bash
+   # Grafana Cloud k6
+   K6_CLOUD_TOKEN=your_k6_cloud_token
+   K6_CLOUD_PROJECT_ID=your_project_id
+   K6_CLOUD_STACK_ID=your_stack_id
+
+   # MySQL credentials for k6
+   K6_MYSQL_USER=k6user
+   K6_MYSQL_PASSWORD=k6userpass
+   ```
+
+### Run k6 Load Test
+
+The k6 service runs with the `load-test` profile, so you must explicitly invoke it:
+
+```bash
+# Start all services (mysql, alloy, etc.)
+docker compose --env-file ../.env up -d
+
+# Run k6 load test (builds k6 with extensions + executes script)
+docker compose --env-file ../.env run --rm k6
+```
+
+**What happens:**
+1. 🔨 Builds custom k6 binary with xk6-sql and MySQL driver extensions
+2. 🚀 Runs the load test script (`/work/scripts/mysql-loadgen-with-gck6.js`)
+3. ☁️ Executes locally but reports results to Grafana Cloud k6
+4. 💾 Saves detailed results to `./results/k6-results.json`
+
+### View Results
+
+**Local Results:**
+```bash
+# View JSON results
+cat results/k6-results.json | jq
+
+# View test output
+docker compose --env-file ../.env logs k6
+```
+
+**Grafana Cloud k6 Dashboard:**
+- The test will output a URL to your Grafana Cloud k6 dashboard
+- View real-time metrics, performance graphs, and test summaries
+
+### Customize the Test
+
+To modify test parameters, edit the k6 command in `compose.yaml`:
+
+```yaml
+# Example: Run for 5 minutes with 10 VUs
+./k6 run --vus 10 --duration 5m \
+  --env K6_MYSQL_HOST \
+  --env K6_MYSQL_PORT \
+  /work/scripts/mysql-loadgen-with-gck6.js
+```
+
+### k6 Service Configuration
+
+The k6 service in `compose.yaml`:
+
+- **Image**: `grafana/xk6:latest` - Official xk6 image with build tools
+- **Working Directory**: `/work` - Base directory for scripts and results
+- **Volumes**:
+  - `./scripts:/work/scripts:ro` - Read-only mount of k6 scripts
+  - `./results:/work/results` - Writable mount for test results
+- **Network**: `db-o11y-network` - Same network as MySQL
+- **Depends On**: MySQL healthy - Waits for MySQL before starting
+- **Profile**: `load-test` - Must be explicitly invoked with `run`
+
+### Troubleshooting k6
+
+**Script not found:**
+```bash
+# Ensure script exists in ./scripts/
+ls -la scripts/mysql-loadgen-with-gck6.js
+```
+
+**Connection refused to MySQL:**
+```bash
+# Verify MySQL is healthy
+docker compose --env-file ../.env ps mysql
+
+# Check network
+docker network inspect mysql_db-o11y-network
+```
+
+**Build failures:**
+```bash
+# Check xk6 build logs
+docker compose --env-file ../.env run k6
+
+# Verify internet connectivity (needs to download Go modules)
+```
+
+---
+
 ## Access Points
 
 ### MySQL Database

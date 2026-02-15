@@ -49,7 +49,7 @@ SHOW TABLES;
 ### Create a sample table
 
 ```sql
-CREATE TABLE company (
+CREATE TABLE IF NOT EXISTS company (
     companyid INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     companyname VARCHAR(50) NOT NULL
 );
