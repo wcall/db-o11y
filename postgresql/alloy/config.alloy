@@ -1,0 +1,91 @@
+logging {
+  level  = "debug"
+  format = "logfmt"
+}
+
+livedebugging {
+  enabled = true
+}
+
+prometheus.exporter.postgres "postgresql_server" {
+  data_source_names = ["postgres://db-o11y:db-o11y-postgres@postgres:5432/super_awesome_application?sslmode=disable"]
+  enabled_collectors = ["stat_statements"]
+
+  autodiscovery {
+    enabled = true
+  }
+}
+
+database_observability.postgres "postgresql_server" {
+  // data_source_name  = local.file.mysql_secret_db.content
+  data_source_name = "postgres://db-o11y:db-o11y-postgres@postgres:5432/super_awesome_application?sslmode=disable"
+  forward_to        = [loki.write.logs_service.receiver]
+  targets           = prometheus.exporter.postgres.postgresql_server.targets
+
+  // I added this part based on email suggestion
+  enable_collectors = ["query_details", "schema_details", "query_samples", "explain_plans"]
+
+  query_samples {
+    disable_query_redaction = true
+  }
+}
+
+loki.relabel "postgresql_server" {
+  forward_to = [loki.write.logs_service.receiver]
+  rule {
+    target_label = "job"
+    replacement  = "integrations/db-o11y"
+  }
+  rule {
+    target_label = "instance"
+    replacement  = "postgresql-test-db"
+  }
+}
+
+discovery.relabel "postgresql_server" {
+  targets = database_observability.postgres.postgresql_server.targets
+
+  rule {
+    target_label = "job"
+    replacement  = "integrations/db-o11y"
+  }
+  rule {
+    target_label = "instance"
+    replacement  = "postgresql-test-db"
+  }
+
+  // OPTIONAL: add any additional relabeling rules
+  // (must be consistent with rules in "loki.relabel")
+  // rule {
+  //  target_label = "instance"
+  //  replacement  = "<INSTANCE_LABEL>"
+  // }
+}
+
+prometheus.scrape "postgresql_server" {
+  job_name = "integrations/db-o11y"
+  targets    = discovery.relabel.postgresql_server.output
+  forward_to = [prometheus.remote_write.metrics_service.receiver]
+}
+
+prometheus.remote_write "metrics_service" {
+  endpoint {
+    url = env("GCLOUD_PROMETHEUS_URL")
+
+    basic_auth {
+      password = sys.env("GCLOUD_PROMETHEUS_PASSWORD")
+      username = sys.env("GCLOUD_PROMETHEUS_USERNAME")
+    }
+  }
+}
+
+loki.write "logs_service" {
+  endpoint {
+    url = env("GCLOUD_LOKI_URL")
+
+    basic_auth {
+      password = sys.env("GCLOUD_LOKI_PASSWORD")
+      username = sys.env("GCLOUD_LOKI_USERNAME")
+    }
+  }
+}

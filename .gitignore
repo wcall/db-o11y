@@ -1,0 +1,27 @@
+# Environment variables with sensitive credentials
+.env
+.env.*
+!.env.example
+
+# Docker volumes and data
+postgres_data/
+
+# Logs
+*.log
+*.log.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
