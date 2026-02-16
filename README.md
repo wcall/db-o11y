@@ -185,16 +185,18 @@ Generate realistic database traffic to test MySQL performance and observability 
 ### Quick Start
 
 ```bash
+# Build custom k6 image (from any directory)
 cd mysql
-
-# Ensure directories exist
-mkdir -p scripts results
+docker compose --env-file ../.env build k6
 
 # Start MySQL
 docker compose --env-file ../.env up -d mysql
 
 # Run k6 load test
 docker compose --env-file ../.env run --rm k6
+
+# View results
+cat ../k6/results/k6-output.log
 ```
 
 ### Query Patterns Tested
@@ -228,8 +230,11 @@ db-o11y/
 ├── .env.example                # Template for environment setup
 ├── .gitignore                  # Git ignore rules
 ├── README.md                   # This file
-├── k6/                         # k6 load testing (legacy)
-│   └── mysql-loadgen-with-gck6.js  # k6 script reference
+├── k6/                         # Custom k6 build configuration
+│   ├── Dockerfile              # Multi-stage build for k6 with SQL extensions
+│   ├── scripts/                # k6 load testing scripts
+│   │   └── mysql-loadgen-with-gck6.js  # MySQL load test script
+│   └── results/                # k6 test results (gitignored)
 ├── mysql/                      # MySQL 8 setup
 │   ├── README.md               # MySQL-specific documentation
 │   ├── compose.yaml            # Docker Compose for MySQL stack
@@ -237,9 +242,6 @@ db-o11y/
 │   ├── init-mysql.md           # Database initialization guide
 │   ├── mysql-init/             # Database initialization scripts
 │   │   └── 01-create-table.sql # Creates company & employee tables
-│   ├── scripts/                # k6 load testing scripts
-│   │   └── mysql-loadgen-with-gck6.js  # MySQL load test script
-│   ├── results/                # k6 test results (gitignored)
 │   └── alloy/
 │       └── config.alloy        # Alloy configuration for MySQL
 └── postgresql/                 # PostgreSQL 15 setup

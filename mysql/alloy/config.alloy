@@ -27,6 +27,13 @@ database_observability.mysql "mysql_db_server" {
     disable_query_redaction = true
   }
 
+  // I added this part to try to see if I can get more explain plans insights
+  explain_plans {
+    collect_interval = "1m"
+    initial_lookback = "24h"
+    per_collect_ratio = 1.0
+  }
+
   // OPTIONAL: provide additional information specific to the cloud provider
   // that hosts the database to enable certain infrastructure observability
   // features. See documentation of `database_observability.mysql` for

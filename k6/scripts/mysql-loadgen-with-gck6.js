@@ -84,8 +84,8 @@ export const options = {
 };
 
 // Database connection string
-//const dbUrl = `${__ENV.K6_MYSQL_USER}:${__ENV.K6_MYSQL_PASSWORD}@tcp(${__ENV.K6_MYSQL_HOST}:${__ENV.K6_MYSQL_PORT})/${__ENV.K6_MYSQL_DATABASE}`;
-const dbUrl = `k6user:k6userpass@tcp(mysql:3306)/super_awesome_application`;
+const dbUrl = `${__ENV.K6_MYSQL_USER}:${__ENV.K6_MYSQL_PASSWORD}@tcp(${__ENV.K6_MYSQL_HOST}:${__ENV.K6_MYSQL_PORT})/${__ENV.K6_MYSQL_DATABASE}`;
+//const dbUrl = `k6user:k6userpass@tcp(mysql:3306)/super_awesome_application`;
 
 // Setup function - runs once per VU
 export function setup() {
@@ -134,9 +134,11 @@ export default function () {
   } else if (queryType < 0.75) {
     // 15% INSERT queries
     executeInsertQuery(db);
+    executeInsertQueryErrors(db);
   } else if (queryType < 0.90) {
     // 15% UPDATE queries
     executeUpdateQuery(db);
+    executeUpdateQueryErrors(db);
   } else {
     // 10% DELETE queries (followed by re-insert)
     executeDeleteQuery(db);
@@ -201,6 +203,24 @@ function executeSelectQueries(db) {
               FROM company c
               LEFT JOIN employee e ON c.companyid = e.companyid
               ORDER BY c.companyid`,
+    },
+    {
+      name: 'left_join_all_companies_with_name_filter',
+      query: `SELECT c.companyid, c.companyname, e.employeeid, e.employeename, e.salary
+              FROM company c
+              LEFT JOIN employee e ON c.companyid = e.companyid
+              WHERE c.companyname LIKE ?   
+              ORDER BY c.companyid`,
+      params: ['%Tech%'],
+    },    
+    {
+      name: 'left_join_all_companies_with_filter',
+      query: `SELECT c.companyid, c.companyname, e.employeeid, e.employeename, e.salary
+              FROM company c
+              LEFT JOIN employee e ON c.companyid = e.companyid
+              WHERE e.salary < ?
+              ORDER BY c.companyid`,
+      params: [100000],
     },
     {
       name: 'full_outer_join_simulation',
@@ -292,6 +312,44 @@ function executeInsertQuery(db) {
   }
 }
 
+// INSERT query errors - attempt to insert into non-existent table to generate errors
+function executeInsertQueryErrors(db) {
+  const companies = [
+    'Acme Corporation',
+    'TechStart Inc',
+    'Global Solutions',
+    'DataFlow Systems',
+    'CloudNet Services',
+    'Innovation Labs',
+    'Digital Ventures',
+    'Smart Analytics',
+    'AI Research Corp',
+    'Quantum Computing Ltd',
+  ];
+
+  const companyName = companies[Math.floor(Math.random() * companies.length)] +
+                     ' #' + Math.floor(Math.random() * 10000);
+
+  const query = 'INSERT INTO competitior (companyname) VALUES (?)';
+
+  const startTime = Date.now();
+  try {
+    db.exec(query, companyName);
+
+    const duration = Date.now() - startTime;
+    queryDuration.add(duration, { query_type: 'insert' });
+    insertCount.add(1);
+    querySuccess.add(1);
+
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    queryDuration.add(duration, { query_type: 'insert' });
+    queryErrors.add(1, { query_type: 'insert', error: error.message });
+    querySuccess.add(0);
+    console.error('INSERT query failed:', error.message);
+  }
+}
+
 // UPDATE query
 function executeUpdateQuery(db) {
   const newNames = [
@@ -307,6 +365,40 @@ function executeUpdateQuery(db) {
   const targetId = Math.floor(Math.random() * 1000) + 1;
 
   const query = 'UPDATE company SET companyname = ? WHERE companyid = ?';
+
+  const startTime = Date.now();
+  try {
+    db.exec(query, newName, targetId);
+
+    const duration = Date.now() - startTime;
+    queryDuration.add(duration, { query_type: 'update' });
+    updateCount.add(1);
+    querySuccess.add(1);
+
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    queryDuration.add(duration, { query_type: 'update' });
+    queryErrors.add(1, { query_type: 'update', error: error.message });
+    querySuccess.add(0);
+    console.error('UPDATE query failed:', error.message);
+  }
+}
+
+// UPDATE query errors - attempt to update non-existent table to generate errors
+function executeUpdateQueryErrors(db) {
+  const newNames = [
+    'Updated Corp',
+    'Renamed LLC',
+    'Modified Industries',
+    'Changed Systems',
+    'Revised Solutions',
+  ];
+
+  const newName = newNames[Math.floor(Math.random() * newNames.length)] +
+                 ' #' + Math.floor(Math.random() * 10000);
+  const targetId = Math.floor(Math.random() * 1000) + 1;
+
+  const query = 'UPDATE competitior SET companyname = ? WHERE companyid = ?';
 
   const startTime = Date.now();
   try {

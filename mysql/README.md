@@ -51,18 +51,19 @@ docker compose --env-file ../.env down -v
 ## Running k6 Load Tests
 
 The compose stack includes a k6 service for load testing MySQL. The k6 service:
-- ✅ Uses the official `grafana/xk6:latest` image
-- ✅ Builds k6 with xk6-sql and MySQL driver extensions on-the-fly
+- ✅ Built from custom Dockerfile at `../k6/Dockerfile`
+- ✅ Includes k6 with xk6-sql and MySQL driver extensions pre-compiled
 - ✅ Executes tests with local execution and cloud reporting
-- ✅ Saves results to `./results/` directory as JSON
+- ✅ Saves results to `./results/` directory
 - ✅ Uses a profile (`load-test`) to prevent auto-start
 
 ### Prerequisites
 
-1. **k6 Script Directory**: Create `./scripts/` directory and add your k6 script:
+1. **k6 Script Directory**: The k6 scripts are located in `../k6/scripts/`:
    ```bash
-   mkdir -p scripts results
-   # Place mysql-loadgen-with-gck6.js in ./scripts/
+   # Scripts and results are in the k6 directory (shared across database types)
+   ls ../k6/scripts/mysql-loadgen-with-gck6.js
+   ls -d ../k6/results
    ```
 
 2. **Environment Variables**: Ensure these are set in `../.env`:
@@ -82,27 +83,30 @@ The compose stack includes a k6 service for load testing MySQL. The k6 service:
 The k6 service runs with the `load-test` profile, so you must explicitly invoke it:
 
 ```bash
+# Build the custom k6 image (first time or after Dockerfile changes)
+docker compose --env-file ../.env build k6
+
 # Start all services (mysql, alloy, etc.)
 docker compose --env-file ../.env up -d
 
-# Run k6 load test (builds k6 with extensions + executes script)
+# Run k6 load test
 docker compose --env-file ../.env run --rm k6
 ```
 
 **What happens:**
-1. 🔨 Builds custom k6 binary with xk6-sql and MySQL driver extensions
+1. 🔨 Uses pre-built k6 image with xk6-sql and MySQL driver extensions
 2. 🚀 Runs the load test script (`/work/scripts/mysql-loadgen-with-gck6.js`)
 3. ☁️ Executes locally but reports results to Grafana Cloud k6
-4. 💾 Saves detailed results to `./results/k6-results.json`
+4. 💾 Saves detailed results to `../k6/results/k6-output.log`
 
 ### View Results
 
 **Local Results:**
 ```bash
-# View JSON results
-cat results/k6-results.json | jq
+# View k6 output log
+cat ../k6/results/k6-output.log
 
-# View test output
+# View test output from container logs
 docker compose --env-file ../.env logs k6
 ```
 
@@ -126,11 +130,13 @@ To modify test parameters, edit the k6 command in `compose.yaml`:
 
 The k6 service in `compose.yaml`:
 
-- **Image**: `grafana/xk6:latest` - Official xk6 image with build tools
+- **Build**: Built from `../k6/Dockerfile` - Custom k6 with SQL extensions
+  - Uses multi-stage build with Go 1.23+ and `GOTOOLCHAIN=auto`
+  - Includes xk6-sql and xk6-sql-driver-mysql extensions
 - **Working Directory**: `/work` - Base directory for scripts and results
 - **Volumes**:
-  - `./scripts:/work/scripts:ro` - Read-only mount of k6 scripts
-  - `./results:/work/results` - Writable mount for test results
+  - `../k6/scripts:/work/scripts:ro` - Read-only mount of k6 scripts
+  - `../k6/results:/work/results` - Writable mount for test results
 - **Network**: `db-o11y-network` - Same network as MySQL
 - **Depends On**: MySQL healthy - Waits for MySQL before starting
 - **Profile**: `load-test` - Must be explicitly invoked with `run`
@@ -139,8 +145,8 @@ The k6 service in `compose.yaml`:
 
 **Script not found:**
 ```bash
-# Ensure script exists in ./scripts/
-ls -la scripts/mysql-loadgen-with-gck6.js
+# Ensure script exists in ../k6/scripts/
+ls -la ../k6/scripts/mysql-loadgen-with-gck6.js
 ```
 
 **Connection refused to MySQL:**
@@ -154,11 +160,18 @@ docker network inspect mysql_db-o11y-network
 
 **Build failures:**
 ```bash
-# Check xk6 build logs
-docker compose --env-file ../.env run k6
+# Rebuild the k6 image
+docker compose --env-file ../.env build k6 --no-cache
 
-# Verify internet connectivity (needs to download Go modules)
+# Check build logs for errors
+docker compose --env-file ../.env build k6
+
+# Verify internet connectivity (needs to download Go modules during build)
 ```
+
+**Go version errors:**
+The Dockerfile uses `GOTOOLCHAIN=auto` to automatically download required Go versions.
+If you see Go version errors, ensure Docker has internet access to download the Go toolchain.
 
 ---
 
@@ -305,11 +318,18 @@ docker compose --env-file ../.env up -d
 ```
 /Users/wei-chincall/Workspace/Grafana/db-o11y/
 ├── .env                              # Environment variables (NOT in git)
+├── k6/
+│   ├── Dockerfile                    # Custom k6 build with SQL extensions
+│   ├── scripts/
+│   │   └── mysql-loadgen-with-gck6.js # k6 load test script
+│   └── results/                      # k6 test results (gitignored)
 └── mysql/
     ├── README.md                     # This file
     ├── compose.yaml                  # Docker Compose configuration
     ├── my.cnf                        # MySQL 8.0 configuration
     ├── init-mysql.md                 # Database initialization guide
+    ├── mysql-init/                   # Database initialization scripts
+    │   └── 01-create-table.sql       # Creates company & employee tables
     └── alloy/
         └── config.alloy              # Alloy configuration
 ```
