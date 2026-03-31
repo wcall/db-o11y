@@ -24,6 +24,36 @@ Provisions a monitored AWS RDS PostgreSQL instance inside a dedicated VPC, with 
 - [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) configured with SSO
 - `psql` installed locally (used by Terraform `local-exec` provisioners)
 
+### AWS Access Keys
+
+You need an Access Key ID and Secret Access Key to configure a named AWS CLI profile.
+
+1. Log in to the AWS Console and navigate to **IAM > Users > `<your-user>`**
+2. Go to the **Security credentials** tab
+3. Under **Access keys**, look up an existing key or click **Create access key**
+4. Copy the **Access Key ID** and **Secret Access Key**
+
+Then configure your local profile:
+
+```bash
+aws configure --profile grafana-se-<yourInitials>
+```
+
+Enter the values when prompted:
+
+```
+AWS Access Key ID:     <your-access-key-id>
+AWS Secret Access Key: <your-secret-access-key>
+Default region name:   us-west-1
+Default output format: json
+```
+
+Verify it works:
+
+```bash
+aws sts get-caller-identity --profile grafana-se-<yourInitials>
+```
+
 ### AWS Role Assumption
 
 ```bash
