@@ -8,7 +8,8 @@ function envTrim(value) {
   return s === '' ? undefined : s;
 }
 
-// RDS requires SSL. Local Postgres / some port-forward targets do not — set DB_SSL=false.
+// AWS RDS requires TLS. Use default (SSL on) through SSM port-forward — the handshake is tunneled to RDS.
+// Set DB_SSL=false only for local Postgres / tunnels that truly do not speak TLS to the server.
 function poolSsl() {
   const v = process.env.DB_SSL?.toLowerCase();
   if (v === 'false' || v === '0' || v === 'no') return false;
