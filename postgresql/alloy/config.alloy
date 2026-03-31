@@ -42,6 +42,62 @@ loki.relabel "postgresql_server" {
   }
 }
 
+// Collect docker logs
+discovery.docker "logs_integrations_docker" {
+    host             = "unix:///var/run/docker.sock"
+    refresh_interval = "5s"
+}
+
+// Collect PostgreSQL logs from Docker container logs instead of log files
+loki.source.docker "postgres_logs" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.docker.logs_integrations_docker.targets
+  forward_to = [loki.process.postgres_logs.receiver]
+  relabel_rules = loki.relabel.postgres_docker_logs.rules
+}
+
+loki.relabel "postgres_docker_logs" {
+  forward_to = [loki.process.postgres_logs.receiver]
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(db-o11y-postgres)"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    target_label  = "container"
+    regex         = "/(.*)"
+    replacement   = "$1"
+  }
+
+  rule {
+    target_label = "job"
+    replacement  = "integrations/postgres_exporter"
+  }
+
+  rule {
+    target_label = "instance"
+    replacement  = "postgresql-test-db"
+  }
+}
+
+loki.process "postgres_logs" {
+  forward_to = [loki.write.logs_service.receiver]
+
+  // Extract log level and other PostgreSQL-specific fields
+  stage.regex {
+    expression = "^(?P<timestamp>\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3} \\w+) \\[(?P<pid>\\d+)\\] (?P<level>\\w+):\\s+(?P<message>.*)"
+  }
+
+  stage.labels {
+    values = {
+      level = "",
+    }
+  }
+}
+
 discovery.relabel "postgresql_server" {
   targets = database_observability.postgres.postgresql_server.targets
 
