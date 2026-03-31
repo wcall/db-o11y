@@ -14,7 +14,7 @@ Provisions a monitored AWS RDS PostgreSQL instance inside a dedicated VPC, with 
 | **Parameter Group** | `pg_stat_statements` + slow query logging enabled |
 | **IAM Role** | Enhanced Monitoring role for RDS |
 | **S3 Bucket** | `wcall-rds-postgresql-bucket` — Terraform remote state |
-| **Init Scripts** | Seed data + `db_o11y` monitoring user, run automatically in order |
+| **Init Scripts** | Seed data + `db-o11y` monitoring user, run automatically in order |
 
 ---
 
@@ -65,7 +65,7 @@ terraform apply \
 
 Terraform will automatically run the init scripts in order after the instance is ready:
 1. `01-seed.sql` — creates `wcall` schema, tables, and sample data
-2. `02-monitoring.sql` — creates extensions, `db_o11y` user, and grants access to both `public` and `wcall` schemas
+2. `02-monitoring.sql` — creates extensions, `db-o11y` user, and grants access to both `public` and `wcall` schemas
 
 After the init scripts complete, reboot the instance so `pg_stat_statements` is fully active:
 
@@ -147,7 +147,7 @@ Expected result: 5 rows across 4 companies (`Grafana Labs`, `Azure`, `Amazon`, `
 
 ---
 
-## Step 5 — Verify db_o11y Access
+## Step 5 — Verify db-o11y Access
 
 Connect as the monitoring user:
 
@@ -155,7 +155,7 @@ Connect as the monitoring user:
 psql \
   --host=$RDS_HOST \
   --port=5432 \
-  --username=db_o11y \
+  --username=db-o11y \
   --dbname=wcall-rds-postgresql-17
 ```
 
@@ -381,7 +381,7 @@ AWS-RDS-PostgreSQL/
 │   └── main.tf                 # S3 remote state bucket
 ├── init/
 │   ├── 01-seed.sql             # wcall schema, tables, and sample data (runs first)
-│   └── 02-monitoring.sql       # db_o11y user, extensions, and schema grants (runs second)
+│   └── 02-monitoring.sql       # db-o11y user, extensions, and schema grants (runs second)
 ├── app/
 │   ├── backend/
 │   │   ├── package.json
