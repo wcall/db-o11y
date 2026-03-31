@@ -19,29 +19,29 @@ CREATE EXTENSION IF NOT EXISTS pg_buffercache;
 
 \getenv monitoring_password MONITORING_PASSWORD
 
-SELECT format('CREATE USER db_o11y WITH LOGIN PASSWORD %L', :'monitoring_password')
-WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'db_o11y')
+SELECT format('CREATE USER "db-o11y" WITH LOGIN PASSWORD %L', :'monitoring_password')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'db-o11y')
 \gexec
 
 -- Predefined role includes stats views (replaces fragile GRANT on pg_stat_statements)
-GRANT pg_monitor TO db_o11y;
-GRANT pg_read_all_stats TO db_o11y;
-GRANT pg_read_all_data TO db_o11y;
+GRANT pg_monitor TO "db-o11y";
+GRANT pg_read_all_stats TO "db-o11y";
+GRANT pg_read_all_data TO "db-o11y";
 
 DO $grant_connect$
 BEGIN
-  EXECUTE format('GRANT CONNECT ON DATABASE %I TO db_o11y', current_database());
+  EXECUTE format('GRANT CONNECT ON DATABASE %I TO "db-o11y"', current_database());
 END
 $grant_connect$;
 
 -- public schema
-GRANT USAGE ON SCHEMA public TO db_o11y;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO db_o11y;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO db_o11y;
+GRANT USAGE ON SCHEMA public TO "db-o11y";
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO "db-o11y";
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO "db-o11y";
 
 -- wcall schema (01-seed.sql)
-GRANT USAGE ON SCHEMA wcall TO db_o11y;
-GRANT SELECT ON ALL TABLES IN SCHEMA wcall TO db_o11y;
-ALTER DEFAULT PRIVILEGES IN SCHEMA wcall GRANT SELECT ON TABLES TO db_o11y;
+GRANT USAGE ON SCHEMA wcall TO "db-o11y";
+GRANT SELECT ON ALL TABLES IN SCHEMA wcall TO "db-o11y";
+ALTER DEFAULT PRIVILEGES IN SCHEMA wcall GRANT SELECT ON TABLES TO "db-o11y";
 
-ALTER ROLE "db_o11y" SET pg_stat_statements.track = 'none';
+ALTER ROLE "db-o11y" SET pg_stat_statements.track = 'none';
