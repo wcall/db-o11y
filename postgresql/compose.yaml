@@ -15,6 +15,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - postgres_logs:/var/lib/postgresql/data/log
       - ./postgresql.conf:/etc/postgresql/postgresql.conf
     command: postgres -c config_file=/etc/postgresql/postgresql.conf
     networks:
@@ -36,6 +37,7 @@ services:
   alloy:
     image: grafana/alloy:v1.13.0
     container_name: db-o11y-alloy
+    # user: "root"
     environment:
       - GCLOUD_PROMETHEUS_URL=${GCLOUD_PROMETHEUS_URL}
       - GCLOUD_PROMETHEUS_USERNAME=${GCLOUD_PROMETHEUS_USERNAME}
@@ -45,6 +47,7 @@ services:
       - GCLOUD_LOKI_PASSWORD=${GCLOUD_LOKI_PASSWORD}
     volumes:
       - ./alloy/config.alloy:/etc/alloy/config.alloy
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
       - "12345:12345"
     command: run --server.http.listen-addr=0.0.0.0:12345 --stability.level=public-preview --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
@@ -59,3 +62,4 @@ networks:
 
 volumes:
   postgres_data:
+  postgres_logs:
