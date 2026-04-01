@@ -1,6 +1,6 @@
 # Environment variables with sensitive credentials
-.env
-.env.*
+*.env
+*.env.*
 !.env.example
 setenv.sh
 
