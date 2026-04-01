@@ -229,7 +229,8 @@ The `my.cnf` configuration includes optimizations for database observability:
 
 ### Alloy Configuration
 
-- `config.alloy` uses environment variables for Grafana Cloud credentials
+- `config.alloy` uses environment variables for all credentials — no secrets are hardcoded
+- `MYSQL_DSN` in `../.env` holds the monitoring user connection string (format: `user:password@tcp(host:port)/`)
 - Connects to MySQL using service name `mysql` (not localhost)
 - Sends metrics to Grafana Cloud Prometheus
 - Sends logs to Grafana Cloud Loki
