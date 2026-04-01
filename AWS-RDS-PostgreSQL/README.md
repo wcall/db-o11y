@@ -526,25 +526,23 @@ aws ssm start-session \
 
 Keep this terminal open. The tunnel forwards `localhost:5433` → RDS port `5432`.
 
-### 2 — Set credentials and Grafana Cloud env vars
+### 2 — Update the DSN string and port in config.alloy
+
+`Edit DSN strings in config.alloy` to `host.docker.internal:5433`:
+
+```
+postgres://db-o11y:<monitoring-user-password>@host.docker.internal:5433/wcallrdspostgresql17?sslmode=require
+```
+
+### 3 — Set Grafana Cloud env vars
 
 Fill in `alloy/setenv.sh` (gitignored) and source it:
-
-- Set `POSTGRES_DSN` to the full connection string for the `db-o11y` monitoring user:
-  ```
-  postgres://db-o11y:<monitoring-password>@host.docker.internal:5433/wcallrdspostgresql17?sslmode=require
-  ```
-  `host.docker.internal` resolves to the Docker host — required because Alloy runs inside a container and the SSM tunnel is bound on the host.
-
-- Set the six Grafana Cloud variables (`GCLOUD_PROMETHEUS_*`, `GCLOUD_LOKI_*`)
 
 ```bash
 source alloy/setenv.sh
 ```
 
-`config.alloy` reads the DSN via `sys.env("POSTGRES_DSN")` — credentials are never stored in the config file.
-
-### 3 — Run Alloy
+### 4 — Run Alloy
 
 ```bash
 docker pull grafana/alloy:v1.15.0
@@ -552,7 +550,6 @@ docker pull grafana/alloy:v1.15.0
 docker run --rm \
   --network host \
   -v "$(pwd)/alloy:/etc/alloy" \
-  -e POSTGRES_DSN \
   -e GCLOUD_PROMETHEUS_URL \
   -e GCLOUD_PROMETHEUS_USERNAME \
   -e GCLOUD_PROMETHEUS_PASSWORD \
