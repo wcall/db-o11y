@@ -9,14 +9,17 @@ livedebugging {
 
 prometheus.exporter.mysql "mysql_db_server" {
   // data_source_name  = local.file.mysql_secret_db.content
-  data_source_name = "db-o11y:DBO11y-MySQL@tcp(mysql:3306)/"
+  data_source_name = sys.env("MYSQL_DSN")
   enable_collectors = ["perf_schema.eventsstatements"]
+  perf_schema.eventsstatements {
+    text_limit = 0
+  }  
 }
 
 database_observability.mysql "mysql_db_server" {
   // data_source_name  = local.file.mysql_secret_db.content
-  data_source_name = "db-o11y:DBO11y-MySQL@tcp(mysql:3306)/"
-  forward_to        = [loki.write.logs_service.receiver]
+  data_source_name = sys.env("MYSQL_DSN")
+  forward_to        = [loki.relabel.database_observability_mysql_db_server.receiver]
   targets           = prometheus.exporter.mysql.mysql_db_server.targets
 
   // I added this part to enable more collectors 
@@ -45,6 +48,17 @@ database_observability.mysql "mysql_db_server" {
   // }
 }
 
+loki.relabel "database_observability_mysql_db_server" {
+  forward_to = [loki.write.logs_service.receiver]
+
+  // OPTIONAL: add any additional relabeling rules
+  // (must be consistent with rules in "discovery.relabel")
+  rule {
+    target_label = "instance"
+    replacement  = "mysql-devdb"
+  }
+}
+
 discovery.relabel "database_observability_mysql_db_server" {
   targets = database_observability.mysql.mysql_db_server.targets
 
@@ -52,21 +66,17 @@ discovery.relabel "database_observability_mysql_db_server" {
     target_label = "job"
     replacement  = "integrations/db-o11y"
   }
-  rule {
-    target_label = "instance"
-    replacement  = "mysql-devdb"
-  }
-
   // OPTIONAL: add any additional relabeling rules
   // (must be consistent with rules in "loki.relabel")
-  // rule {
-  //  target_label = "instance"
-  //  replacement  = "<INSTANCE_LABEL>"
-  // }
+  // OPTIONAL: relabel `instance` to `dsn` before overwriting `instance`;
+  // the `dsn` label is used in the integration with the knowledge graph
+  rule {
+    source_labels = ["instance"]
+    target_label  = "dsn"
+  }
 }
 
 prometheus.scrape "database_observability_mysql_db_server" {
-  // job_name = "integrations/db-o11y"
   targets    = discovery.relabel.database_observability_mysql_db_server.output
   forward_to = [prometheus.remote_write.metrics_service.receiver]
 }

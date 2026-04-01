@@ -8,7 +8,7 @@ livedebugging {
 }
 
 prometheus.exporter.postgres "postgresql_server" {
-  data_source_names = ["postgres://db-o11y:db-o11y-postgres@postgres:5432/super_awesome_application?sslmode=disable"]
+  data_source_names = [sys.env("POSTGRES_DSN")]
   enabled_collectors = ["stat_statements"]
 
   autodiscovery {
@@ -18,8 +18,8 @@ prometheus.exporter.postgres "postgresql_server" {
 
 database_observability.postgres "postgresql_server" {
   // data_source_name  = local.file.mysql_secret_db.content
-  data_source_name = "postgres://db-o11y:db-o11y-postgres@postgres:5432/super_awesome_application?sslmode=disable"
-  forward_to        = [loki.write.logs_service.receiver]
+  data_source_name = sys.env("POSTGRES_DSN")
+  forward_to        = [loki.relabel.database_observability_postgresql_server.receiver]
   targets           = prometheus.exporter.postgres.postgresql_server.targets
 
   // I added this part based on email suggestion
@@ -30,7 +30,7 @@ database_observability.postgres "postgresql_server" {
   }
 }
 
-loki.relabel "postgresql_server" {
+loki.relabel "database_observability_postgresql_server" {
   forward_to = [loki.write.logs_service.receiver]
   rule {
     target_label = "job"
@@ -98,7 +98,7 @@ loki.process "postgres_logs" {
   }
 }
 
-discovery.relabel "postgresql_server" {
+discovery.relabel "database_observability_postgresql_server" {
   targets = database_observability.postgres.postgresql_server.targets
 
   rule {
@@ -109,18 +109,11 @@ discovery.relabel "postgresql_server" {
     target_label = "instance"
     replacement  = "postgresql-test-db"
   }
-
-  // OPTIONAL: add any additional relabeling rules
-  // (must be consistent with rules in "loki.relabel")
-  // rule {
-  //  target_label = "instance"
-  //  replacement  = "<INSTANCE_LABEL>"
-  // }
 }
 
 prometheus.scrape "postgresql_server" {
   job_name = "integrations/db-o11y"
-  targets    = discovery.relabel.postgresql_server.output
+  targets    = discovery.relabel.database_observability_postgresql_server.output
   forward_to = [prometheus.remote_write.metrics_service.receiver]
 }
 
