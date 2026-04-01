@@ -1,0 +1,119 @@
+logging {
+  level  = "debug"
+  format = "logfmt"
+}
+
+livedebugging {
+  enabled = true
+}
+
+prometheus.exporter.postgres "postgresql_server" {
+  data_source_names = [sys.env("POSTGRES_DSN")]
+  enabled_collectors = ["stat_statements"]
+
+  stat_statements {
+    exclude_users      = ["db-o11y", "rdsadmin"]
+    exclude_databases  = ["rdsadmin"]
+  }
+
+  autodiscovery {
+    enabled = true
+
+    // Exclude the rdsadmin database on RDS
+    database_denylist = ["rdsadmin"]
+  }
+}
+
+database_observability.postgres "postgresql_server" {
+  data_source_name = sys.env("POSTGRES_DSN")
+  forward_to        = [loki.relabel.postgresql_server.receiver]
+  targets           = prometheus.exporter.postgres.postgresql_server.targets
+  enable_collectors = ["query_details", "query_samples", "schema_details", "explain_plans"]
+  exclude_users     = ["db-o11y", "rdsadmin"]
+  exclude_databases = ["rdsadmin"]
+
+  query_samples {
+    disable_query_redaction = true
+  }
+
+  // reference https://grafana.com/docs/grafana-cloud/monitor-applications/database-observability/set-up/postgres/rds/
+  cloud_provider {
+    aws {
+      arn = "arn:aws:rds:us-west-1:494614287886:db:db-o11y-postgres" // AWS_RDS_INSTANCE_ARN
+    }
+  }
+}
+
+loki.relabel "postgresql_server" {
+  forward_to = [loki.write.logs_service.receiver]
+  rule {
+    target_label = "job"
+    replacement  = "integrations/db-o11y"
+  }
+  rule {
+    target_label = "instance"
+    replacement  = "wcallrdspostgresql17"
+  }
+}
+
+loki.process "postgres_logs" {
+  forward_to = [loki.write.logs_service.receiver]
+
+  // Extract log level and other PostgreSQL-specific fields
+  stage.regex {
+    expression = "^(?P<timestamp>\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3} \\w+) \\[(?P<pid>\\d+)\\] (?P<level>\\w+):\\s+(?P<message>.*)"
+  }
+
+  stage.labels {
+    values = {
+      level = "",
+    }
+  }
+}
+
+discovery.relabel "postgresql_server" {
+  targets = database_observability.postgres.postgresql_server.targets
+
+  rule {
+    target_label = "job"
+    replacement  = "integrations/db-o11y"
+  }
+  // OPTIONAL: relabel `instance` to `dsn` before overwriting `instance`;
+  // the `dsn` label is used in the integration with the knowledge graph
+  rule {
+    source_labels = ["instance"]
+    target_label  = "dsn"
+  }
+  rule {
+    target_label = "instance"
+    replacement  = "wcallrdspostgresql17"
+  }
+}
+
+prometheus.scrape "postgresql_server" {
+  job_name = "integrations/db-o11y"
+  targets    = discovery.relabel.postgresql_server.output
+  forward_to = [prometheus.remote_write.metrics_service.receiver]
+}
+
+prometheus.remote_write "metrics_service" {
+  endpoint {
+    url = sys.env("GCLOUD_PROMETHEUS_URL")
+
+    basic_auth {
+      password = sys.env("GCLOUD_PROMETHEUS_PASSWORD")
+      username = sys.env("GCLOUD_PROMETHEUS_USERNAME")
+    }
+  }
+}
+
+loki.write "logs_service" {
+  endpoint {
+    url = sys.env("GCLOUD_LOKI_URL")
+
+    basic_auth {
+      password = sys.env("GCLOUD_LOKI_PASSWORD")
+      username = sys.env("GCLOUD_LOKI_USERNAME")
+    }
+  }
+}
