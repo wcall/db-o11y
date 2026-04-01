@@ -24,32 +24,48 @@ This repository provides Docker Compose setups for monitoring **MySQL 8** and **
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     Grafana Cloud                           │
-│  ┌─────────────────┐         ┌─────────────────┐           │
-│  │   Prometheus    │         │      Loki       │           │
-│  │   (Metrics)     │         │     (Logs)      │           │
-│  └────────▲────────┘         └────────▲────────┘           │
-└───────────┼───────────────────────────┼────────────────────┘
-            │                           │
-            │        Grafana Alloy      │
-            │   ┌───────────────────┐   │
-            └───┤  Telemetry        ├───┘
-                │  Collector        │
-                └─────────┬─────────┘
-                          │
-          ┌───────────────┴───────────────┐
-          │                               │
-    ┌─────▼─────┐                  ┌─────▼─────┐
-    │  MySQL 8  │                  │PostgreSQL │
-    │           │                  │    15     │
-    │Performance│                  │pg_stat_   │
-    │  Schema   │                  │statements │
-    └───────────┘                  └───────────┘
-          │                               │
-    ┌─────▼─────┐                  ┌─────▼─────┐
-    │phpMyAdmin │                  │  pgAdmin  │
-    └───────────┘                  └───────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                              Grafana Cloud                                   │
+│   ┌─────────────────┐                       ┌─────────────────┐             │
+│   │   Prometheus    │                       │      Loki       │             │
+│   │   (Metrics)     │                       │     (Logs)      │             │
+│   └────────▲────────┘                       └────────▲────────┘             │
+└────────────┼────────────────────────────────────────┼─────────────────────--┘
+             │                                        │
+             │              Grafana Alloy             │
+             │         ┌───────────────────┐          │
+             └─────────┤  Telemetry        ├──────────┘
+                       │  Collector        │
+                       └────────┬──────────┘
+                                │
+          ┌─────────────────────┼──────────────────────┐
+          │                     │                      │
+   Local Docker Compose         │                  AWS VPC
+┌─────────┴──────────┐          │         ┌────────────┴──────────────┐
+│                    │          │         │                           │
+│  ┌─────────────┐   │          │         │  ┌─────────────────────┐  │
+│  │   MySQL 8   │   │          │         │  │  RDS PostgreSQL 17  │  │
+│  │  Performance│   │          │         │  │    pg_stat_         │  │
+│  │   Schema    │   │          │         │  │    statements       │  │
+│  └──────┬──────┘   │          │         │  └──────────┬──────────┘  │
+│         │          │          │         │             │             │
+│  ┌──────▼──────┐   │          │         │  ┌──────────▼──────────┐  │
+│  │  phpMyAdmin │   │          │         │  │  Bastion EC2        │  │
+│  └─────────────┘   │          │         │  │  SSM Port Forward   │  │
+│                    │          │         │  │  localhost:5433      │  │
+│  ┌─────────────┐   │          │         │  └─────────────────────┘  │
+│  │ PostgreSQL  │   │          │         └───────────────────────────┘
+│  │     15      │   │          │
+│  │  pg_stat_   │   │          │
+│  │  statements │   │          │
+│  └──────┬──────┘   │          │
+│         │          │          │
+│  ┌──────▼──────┐   │          │
+│  │   pgAdmin   │   │          │
+│  └─────────────┘   │          │
+└────────────────────┘          │
+                                │
+                     (SSM tunnel via bastion)
 ```
 
 ---
@@ -169,54 +185,42 @@ docker compose --env-file ../.env up -d
 
 ---
 
-## 🚦 k6 Load Testing for MySQL
+## 🚦 k6 Load Testing
 
-Generate realistic database traffic to test MySQL performance and observability capabilities.
+Generate realistic database traffic to test performance and observability across both database setups.
 
-### Features
+### MySQL k6 Tests
 
-- 📊 **Realistic Query Patterns** - 60% SELECT, 15% INSERT, 15% UPDATE, 10% DELETE
-- 🔗 **Complex JOIN Queries** - INNER JOIN, LEFT JOIN, FULL OUTER JOIN simulations
-- ⏱️ **Configurable Load Stages** - 1-hour test with ramp-up, steady state, and spike testing
-- ☁️ **Grafana Cloud k6** - Local execution with cloud reporting and dashboards
-- 📈 **Custom Metrics** - Query duration, success rate, operation counters
-- 🎯 **Performance Thresholds** - p95 < 500ms, p99 < 1000ms, 95% success rate
-
-### Quick Start
+Runs via Docker Compose against the local MySQL stack.
 
 ```bash
 cd mysql
-
-# Ensure directories exist
-mkdir -p scripts results
-
-# Start MySQL
 docker compose --env-file ../.env up -d mysql
-
-# Run k6 load test
 docker compose --env-file ../.env run --rm k6
 ```
 
-### Query Patterns Tested
+Query mix: 60% SELECT, 15% INSERT, 15% UPDATE, 10% DELETE — including INNER JOIN, LEFT JOIN, aggregations, and write operations with a 1-hour ramp-up/steady-state/spike profile.
 
-- **Simple SELECTs** - All companies, by ID, by name pattern
-- **Aggregations** - COUNT, GROUP BY, AVG
-- **INNER JOINs** - Company-Employee relationships with aggregations
-- **LEFT JOINs** - All companies with optional employee data
-- **FULL OUTER JOINs** - Complete dataset including orphaned records
-- **Filtered JOINs** - Salary ranges, employee counts, HAVING clauses
-- **Write Operations** - INSERTs, UPDATEs, DELETEs with re-insertion
+See [mysql/README.md](mysql/README.md#running-k6-load-tests) for full details.
 
-### Observability Insights
+### AWS RDS PostgreSQL k6 Tests
 
-The load test helps you:
-1. 🔍 **Identify slow queries** in Database Observability dashboards
-2. 📊 **Analyze JOIN performance** under realistic load
-3. ⚡ **Detect bottlenecks** during peak traffic
-4. 📉 **Optimize query patterns** based on p95/p99 latencies
-5. 🎯 **Set performance baselines** for SLO/SLA definitions
+Runs directly against the backend API (`localhost:3001`) with the SSM tunnel active.
 
-See [mysql/README.md](mysql/README.md#running-k6-load-tests) for detailed k6 setup and usage instructions.
+| Script | Duration | Description |
+|---|---|---|
+| `insert-test.js` | ~7 min | 5 VUs inserting k6-prefixed companies and products, cleans up on teardown |
+| `query-test.js` | ~27 min | 3 VUs listing companies + 5 VUs running JOIN queries, read-only |
+| `mixed-test.js` | ~14 min | 3 VUs writing + 8 VUs reading concurrently, cleans up on teardown |
+
+```bash
+# Start the SSM tunnel and backend first, then:
+K6_NO_USAGE_REPORT=true k6 run AWS-RDS-PostgreSQL/k6/insert-test.js
+K6_NO_USAGE_REPORT=true k6 run AWS-RDS-PostgreSQL/k6/query-test.js
+K6_NO_USAGE_REPORT=true k6 run AWS-RDS-PostgreSQL/k6/mixed-test.js
+```
+
+See [AWS-RDS-PostgreSQL/README.md](AWS-RDS-PostgreSQL/README.md#running-k6-load-tests) for full details.
 
 ---
 
