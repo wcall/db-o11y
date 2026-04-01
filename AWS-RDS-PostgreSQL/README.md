@@ -4,17 +4,19 @@ Provisions a monitored AWS RDS PostgreSQL instance inside a dedicated VPC, with 
 
 ## What Gets Provisioned
 
-| Resource | Details |
-|---|---|
-| **VPC** | `10.0.0.0/16`, DNS enabled |
-| **Subnets** | 2 private (RDS) + 2 public across `us-west-1a/b` |
-| **Internet Gateway** | Attached to public subnets |
-| **Security Group** | Port 5432 open to `allowed_cidr_blocks` |
-| **RDS PostgreSQL 17** | `db.t3.medium`, gp3, encrypted, single-AZ |
-| **Parameter Group** | `pg_stat_statements` + slow query logging enabled |
-| **IAM Role** | Enhanced Monitoring role for RDS |
-| **S3 Bucket** | `wcall-rds-postgresql-bucket` — Terraform remote state |
-| **Init Scripts** | Seed data + `db-o11y` monitoring user, run automatically in order |
+
+| Resource              | Details                                                           |
+| --------------------- | ----------------------------------------------------------------- |
+| **VPC**               | `10.0.0.0/16`, DNS enabled                                        |
+| **Subnets**           | 2 private (RDS) + 2 public across `us-west-1a/b`                  |
+| **Internet Gateway**  | Attached to public subnets                                        |
+| **Security Group**    | Port 5432 open to `allowed_cidr_blocks`                           |
+| **RDS PostgreSQL 17** | `db.t3.medium`, gp3, encrypted, single-AZ                         |
+| **Parameter Group**   | `pg_stat_statements` + slow query logging enabled                 |
+| **IAM Role**          | Enhanced Monitoring role for RDS                                  |
+| **S3 Bucket**         | `wcall-rds-postgresql-bucket` — Terraform remote state            |
+| **Init Scripts**      | Seed data + `db-o11y` monitoring user, run automatically in order |
+
 
 ---
 
@@ -54,6 +56,139 @@ Verify it works:
 aws sts get-caller-identity --profile grafana-se-<yourInitials>
 ```
 
+### IAM Policy — TerraformRDSPolicy
+
+Create a policy that grants the permissions needed for Terraform to provision RDS, VPC, S3, and IAM resources.
+
+1. In the AWS Console navigate to **IAM > Policies > Create policy**
+2. Name it `**TerraformRDSPolicy`** and attach the following JSON:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "RDS",
+      "Effect": "Allow",
+      "Action": ["rds:*"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "VPC",
+      "Effect": "Allow",
+      "Action": ["ec2:*"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SecretsManagerForRDS",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:CreateSecret",
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:PutSecretValue",
+        "secretsmanager:DeleteSecret",
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:TagResource"
+      ],
+      "Resource": "*"
+    },  
+    {
+      "Sid": "S3",
+      "Effect": "Allow",
+      "Action": ["s3:*"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "RDSParameterGroup",
+      "Effect": "Allow",
+      "Action": [
+        "rds:CreateDBParameterGroup",
+        "rds:DeleteDBParameterGroup",
+        "rds:DescribeDBParameterGroups",
+        "rds:DescribeDBParameters",
+        "rds:ModifyDBParameterGroup",
+        "rds:ResetDBParameterGroup"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "IAMRoleManagement",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:GetRole",
+        "iam:ListRoles",
+        "iam:UpdateRole",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListRolePolicies"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "IAMPassRoleScoped",
+      "Effect": "Allow",
+      "Action": ["iam:PassRole"],
+      "Resource": "arn:aws:iam::YOUR_ACCOUNT_ID:role/db-o11y-postgres-monitoring-role"
+    }
+  ]
+}
+```
+
+### IAM Role — TerraformRDSRole
+
+Create a role that Terraform will assume when provisioning resources.
+
+1. Navigate to **IAM > Roles > Create role**
+2. Select **AWS account** as the trusted entity type and enter account ID `**YOUR_ACCOUNT_ID`**
+3. Attach `**TerraformRDSPolicy`**
+4. Name the role `**TerraformRDSRole`**
+
+After creation, edit the trust policy to allow your IAM user to assume this role:
+
+1. Open **TerraformRDSRole > Trust relationships > Edit trust policy**
+2. Replace the principal with your IAM user ARN:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::YOUR_ACCOUNT_ID:user/YOUR_IAM_USERNAME"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+```
+
+1. Save the trust policy
+
+Grant your IAM user permission to assume the role.
+
+1. IAM > Users > [your user] > Permissions tab
+2. Click Add permissions > Attach policies directly
+3. Click Create inline policy instead, switch to JSON:
+
+```
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": "arn:aws:iam::YOUR_ACCOUNT_ID:role/TerraformRDSRole"
+    }
+  ]
+}
+```
+
 ### AWS Role Assumption
 
 ```bash
@@ -75,6 +210,7 @@ cd ..
 ```
 
 Expected output:
+
 ```
 tfstate_bucket_name = "wcall-rds-postgresql-bucket"
 ```
@@ -94,6 +230,7 @@ terraform apply \
 > **Note:** `pg_stat_statements` requires a reboot after first apply due to `shared_preload_libraries`. Terraform handles this automatically on first provision.
 
 Terraform will automatically run the init scripts in order after the instance is ready:
+
 1. `01-seed.sql` — creates `wcall` schema, tables, and sample data
 2. `02-monitoring.sql` — creates extensions, `db-o11y` user, and grants access to both `public` and `wcall` schemas
 
@@ -136,16 +273,75 @@ terraform output db_instance_port
 
 ---
 
-## Step 3 — Connect to PostgreSQL
+## Step 3 — Create a Bastion EC2 Instance
+
+Because RDS is in private subnets, you need a bastion EC2 instance in the same VPC to tunnel connections via SSM.
+
+### Launch the bastion
+
+1. In the AWS Console navigate to **EC2 > Instances > Launch instances**
+2. Configure the instance:
+  - **Name:** `db-o11y-bastion`
+  - **AMI:** Amazon Linux 2023 (or Amazon Linux 2)
+  - **Instance type:** `t3.micro`
+  - **Key pair:** None required (SSM handles access)
+  - **VPC:** Select the VPC created by Terraform (e.g. `db-o11y-postgres-vpc`)
+  - **Subnet:** Select one of the **public** subnets (`db-o11y-postgres-public-`*)
+  - **Auto-assign public IP:** Enable
+  - **[Optional] Security group:** Create a new one with an inbound rule for SSH (port 22) restricted to your IP. Run the following to find your public IP:
+    ```bash
+    curl https://checkip.amazonaws.com
+    ```
+    Add an inbound rule: **Type** SSH, **Port** 22, **Source** `<your-ip>/32`
+3. Under **Advanced details > IAM instance profile**, attach an IAM role that includes the `AmazonSSMManagedInstanceCore` policy (create one if it doesn't exist)
+4. Launch the instance and wait for the status check to pass
+
+### Install the SSM Session Manager plugin
+
+The `aws ssm start-session` command requires the Session Manager plugin. Follow the macOS installation instructions at:
+
+[https://docs.aws.amazon.com/systems-manager/latest/userguide/install-plugin-macos-overview.html](https://docs.aws.amazon.com/systems-manager/latest/userguide/install-plugin-macos-overview.html)
+
+### Start the SSM port-forward tunnel
+
+Once the plugin is installed and the bastion is running, forward local port `5433` to RDS port `5432` through the bastion:
 
 ```bash
-export RDS_HOST=$(terraform output -raw db_instance_address)
+aws ssm start-session \
+  --target <bastion-instance-id> \
+  --document-name AWS-StartPortForwardingSessionToRemoteHost \
+  --parameters '{
+    "host": ["db-o11y-postgres.c1udvcbskwrv.us-west-1.rds.amazonaws.com"],
+    "portNumber": ["5432"],
+    "localPortNumber": ["5433"]
+  }' \
+  --profile grafana-se-<yourInitials>
+```
 
-psql \
-  --host=$RDS_HOST \
-  --port=5432 \
+Keep this terminal open. `localhost:5433` now routes to RDS port `5432` through the bastion.
+
+### Verify the tunnel
+
+```bash
+PGPASSWORD='<master-password>' psql \
+  --host=127.0.0.1 \
+  --port=5433 \
   --username=dbadmin \
-  --dbname=wcall-rds-postgresql-17
+  --dbname=wcallrdspostgresql17
+```
+
+---
+
+## Step 4 — Connect to PostgreSQL
+
+```bash
+PGPASSWORD='<master-password>' psql \
+  --host=127.0.0.1 \
+  --port=5433 \
+  --username=dbadmin \
+  --dbname=wcallrdspostgresql17 \
+  --file=./init/01-seed.sql \
+  --echo-all
 ```
 
 ### List databases
@@ -162,7 +358,7 @@ psql \
 
 ---
 
-## Step 4 — Verify Seed Data
+## Step 5 — Verify Seed Data
 
 ```sql
 SELECT c.companyname, p.productname
@@ -177,14 +373,14 @@ Expected result: 5 rows across 4 companies (`Grafana Labs`, `Azure`, `Amazon`, `
 
 ---
 
-## Step 5 — Verify db-o11y Access
+## Step 6 — Verify db-o11y Access
 
 Connect as the monitoring user:
 
 ```bash
-psql \
-  --host=$RDS_HOST \
-  --port=5432 \
+PGPASSWORD='<monitoring-password>' psql \
+  --host=127.0.0.1 \
+  --port=5433 \
   --username=db-o11y \
   --dbname=wcall-rds-postgresql-17
 ```
@@ -199,7 +395,7 @@ SELECT * FROM pg_stat_statements LIMIT 5;
 
 ---
 
-## Step 6 — Verify Monitoring Extensions
+## Step 7 — Verify Monitoring Extensions
 
 ```sql
 -- Confirm extensions are active
@@ -250,7 +446,7 @@ aws ssm start-session \
   --parameters '{
     "host": ["db-o11y-postgres.c1udvcbskwrv.us-west-1.rds.amazonaws.com"],
     "portNumber": ["5432"],
-    "localPortNumber": ["5432"]
+    "localPortNumber": ["5433"]
   }' \
   --profile grafana-se-wcall
 ```
@@ -293,18 +489,20 @@ Frontend runs at `http://localhost:3000`. The Vite dev server proxies `/api/*` t
 
 ### API endpoints
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/health` | Health check |
-| GET | `/api/companies` | List all companies |
-| POST | `/api/companies` | Insert a company `{ name }` |
-| DELETE | `/api/companies/:id` | Delete by ID |
-| DELETE | `/api/companies/cleanup` | Delete all k6 test companies (and their products) |
-| GET | `/api/products` | List all products |
-| GET | `/api/products/with-company` | Products with company name (JOIN) |
-| POST | `/api/products` | Insert a product `{ name, company_id }` |
-| DELETE | `/api/products/:id` | Delete by ID |
-| DELETE | `/api/products/cleanup` | Delete all k6 test products |
+
+| Method | Path                         | Description                                       |
+| ------ | ---------------------------- | ------------------------------------------------- |
+| GET    | `/api/health`                | Health check                                      |
+| GET    | `/api/companies`             | List all companies                                |
+| POST   | `/api/companies`             | Insert a company `{ name }`                       |
+| DELETE | `/api/companies/:id`         | Delete by ID                                      |
+| DELETE | `/api/companies/cleanup`     | Delete all k6 test companies (and their products) |
+| GET    | `/api/products`              | List all products                                 |
+| GET    | `/api/products/with-company` | Products with company name (JOIN)                 |
+| POST   | `/api/products`              | Insert a product `{ name, company_id }`           |
+| DELETE | `/api/products/:id`          | Delete by ID                                      |
+| DELETE | `/api/products/cleanup`      | Delete all k6 test products                       |
+
 
 ---
 
@@ -316,21 +514,21 @@ Frontend runs at `http://localhost:3000`. The Vite dev server proxies `/api/*` t
 
 ```bash
 aws ssm start-session \
-  --target i-07c32e6bf6451e176 \
+  --target <i-EC2InstanceID> \
   --document-name AWS-StartPortForwardingSessionToRemoteHost \
   --parameters '{
     "host": ["db-o11y-postgres.c1udvcbskwrv.us-west-1.rds.amazonaws.com"],
     "portNumber": ["5432"],
     "localPortNumber": ["5433"]
   }' \
-  --profile grafana-se-wcall
+  --profile grafana-se-<yourInitials>
 ```
 
 Keep this terminal open. The tunnel forwards `localhost:5433` → RDS port `5432`.
 
 ### 2 — Update the DSN string and port in config.alloy
 
-`config.alloy` defaults to `127.0.0.1:5432`. Change both DSN strings to `host.docker.internal:5433`:
+`Edit DSN strings in config.alloy` to `host.docker.internal:5433`:
 
 ```
 postgres://db-o11y:<monitoring-user-password>@host.docker.internal:5433/wcallrdspostgresql17?sslmode=require
@@ -445,3 +643,4 @@ AWS-RDS-PostgreSQL/
 ├── main.tf                     # VPC, subnets, RDS, IAM, parameter group, init runners
 └── outputs.tf                  # Endpoint, VPC, subnet IDs
 ```
+
