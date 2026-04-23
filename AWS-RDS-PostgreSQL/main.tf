@@ -174,6 +174,11 @@ resource "aws_db_parameter_group" "this" {
     apply_method = "immediate"
   }
 
+  parameter {
+    name  = "log_line_prefix"
+    value = "%m:%r:%u@%d:[%p]:%l:%e:%s:%v:%x:%c:%q%a:"
+  }
+
   tags = merge(local.common_tags, { Name = "${var.identifier}-pg15" })
 }
 
