@@ -65,6 +65,36 @@ services:
     networks:
       - db-o11y-network
 
+  backend:
+    build: ./app/backend
+    container_name: db-o11y-backend
+    ports:
+      - "3001:3001"
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${MYSQL_DATABASE:-super_awesome_application}
+      DB_USER: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      PORT: 3001
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - db-o11y-network
+
+  frontend:
+    build: ./app/frontend
+    container_name: db-o11y-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      BACKEND_URL: http://backend:3001
+    depends_on:
+      - backend
+    networks:
+      - db-o11y-network
+
   k6:
     image: grafana/xk6:latest
     container_name: db-o11y-k6
