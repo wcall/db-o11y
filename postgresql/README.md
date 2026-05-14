@@ -167,13 +167,13 @@ Copy the file into the container and run it:
 
 ```bash
 docker cp generate_load.sql db-o11y-postgres:/tmp/generate_load.sql
-docker exec db-o11y-postgres psql -U db-o11y -d super_awesome_application -f /tmp/generate_load.sql
+docker exec db-o11y-postgres psql -U wcall -d super_awesome_application -f /tmp/generate_load.sql
 ```
 
 Or if the file is already copied:
 
 ```bash
-docker exec db-o11y-postgres psql -U db-o11y -d super_awesome_application -f /tmp/generate_load.sql
+docker exec db-o11y-postgres psql -U wcall -d super_awesome_application -f /tmp/generate_load.sql
 ```
 
 ---

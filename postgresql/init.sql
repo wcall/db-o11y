@@ -50,3 +50,19 @@ GRANT USAGE ON SCHEMA public TO "db-o11y";
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO "db-o11y";
 GRANT USAGE ON SCHEMA wcall TO "db-o11y";
 GRANT SELECT ON ALL TABLES IN SCHEMA wcall TO "db-o11y";
+
+-- Create wcall application role
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'wcall') THEN
+        CREATE USER wcall WITH PASSWORD 'wcall';
+    END IF;
+END
+$$;
+
+GRANT USAGE ON SCHEMA public TO wcall;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO wcall;
+GRANT USAGE ON SCHEMA wcall TO wcall;
+GRANT SELECT ON ALL TABLES IN SCHEMA wcall TO wcall;
+-- Track all queries made by the wcall role from pg_stat_statements
+ALTER ROLE "wcall" SET pg_stat_statements.track = 'all';
