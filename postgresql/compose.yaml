@@ -47,6 +47,7 @@ services:
       - GCLOUD_LOKI_URL=${GCLOUD_LOKI_URL}
       - GCLOUD_LOKI_USERNAME=${GCLOUD_LOKI_USERNAME}
       - GCLOUD_LOKI_PASSWORD=${GCLOUD_LOKI_PASSWORD}
+      - POSTGRES_DSN=${POSTGRES_DSN}
     volumes:
       - ./alloy/config.alloy:/etc/alloy/config.alloy
       - /var/run/docker.sock:/var/run/docker.sock:ro
