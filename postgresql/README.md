@@ -155,6 +155,29 @@ docker compose --env-file ../.env up -d
 
 ---
 
+## Generating Query Load
+
+`generate_load.sql` runs 30 mixed statements against the database:
+
+- **80%** normal queries (selects, aggregations, window functions, subqueries)
+- **10%** intentional errors (missing relation, division by zero, invalid cast)
+- **10%** complex / slow queries (exceed `log_min_duration_statement` threshold)
+
+Copy the file into the container and run it:
+
+```bash
+docker cp generate_load.sql db-o11y-postgres:/tmp/generate_load.sql
+docker exec db-o11y-postgres psql -U wcall -d super_awesome_application -f /tmp/generate_load.sql
+```
+
+Or if the file is already copied:
+
+```bash
+docker exec db-o11y-postgres psql -U wcall -d super_awesome_application -f /tmp/generate_load.sql
+```
+
+---
+
 ## File Structure
 
 ```
@@ -164,6 +187,8 @@ docker compose --env-file ../.env up -d
     ├── README.md                     # This file
     ├── compose.yaml                  # Docker Compose configuration
     ├── postgresql.conf               # PostgreSQL configuration
+    ├── init.sql                      # Database initialization (runs on first start)
+    ├── generate_load.sql             # Mixed query load generator
     ├── init-postgres.md              # Database initialization guide
     └── alloy/
         └── config.alloy              # Alloy configuration

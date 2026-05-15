@@ -23,7 +23,7 @@ database_observability.postgres "postgresql_server" {
   targets           = prometheus.exporter.postgres.postgresql_server.targets
 
   // I added this part based on email suggestion
-  enable_collectors = ["query_details", "schema_details", "query_samples", "explain_plans"]
+  enable_collectors = ["query_details", "schema_details", "query_samples", "explain_plans", "logs"]
 
   query_samples {
     disable_query_redaction = true
@@ -74,7 +74,8 @@ loki.relabel "postgres_docker_logs" {
 
   rule {
     target_label = "job"
-    replacement  = "integrations/postgres_exporter"
+    // replacement  = "integrations/postgres_exporter"
+    replacement  = "integrations/db-o11y"
   }
 
   rule {
@@ -86,9 +87,8 @@ loki.relabel "postgres_docker_logs" {
 loki.process "postgres_logs" {
   forward_to = [loki.write.logs_service.receiver]
 
-  // Extract log level and other PostgreSQL-specific fields
   stage.regex {
-    expression = "^(?P<timestamp>\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3} \\w+) \\[(?P<pid>\\d+)\\] (?P<level>\\w+):\\s+(?P<message>.*)"
+    expression = "^(?P<timestamp>\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3} \\w+).*: (?P<level>LOG|ERROR|FATAL|PANIC|WARNING|NOTICE|INFO|DEBUG):\\s+(?P<message>.*)"
   }
 
   stage.labels {
@@ -96,6 +96,19 @@ loki.process "postgres_logs" {
       level = "",
     }
   }
+}
+
+local.file_match "postgres_log_files" {
+  path_targets = [{
+    __path__ = "/var/log/postgresql/postgresql-*.log",
+    job      = "postgres_logs",
+  }]
+  sync_period = "5s"
+}
+
+loki.source.file "database_observability_postgres_postgresql_server" {
+  targets    = local.file_match.postgres_log_files.targets
+  forward_to = [database_observability.postgres.postgresql_server.logs_receiver]
 }
 
 discovery.relabel "database_observability_postgresql_server" {
