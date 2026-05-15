@@ -52,8 +52,9 @@ discovery.docker "logs_integrations_docker" {
 loki.source.docker "postgres_logs" {
   host       = "unix:///var/run/docker.sock"
   targets    = discovery.docker.logs_integrations_docker.targets
-  forward_to = [loki.process.postgres_logs.receiver]
-  relabel_rules = loki.relabel.postgres_docker_logs.rules
+  //forward_to = [loki.process.postgres_logs.receiver]
+  forward_to = [database_observability.postgres.postgresql_server.logs_receiver]
+  //relabel_rules = loki.relabel.postgres_docker_logs.rules
 }
 
 loki.relabel "postgres_docker_logs" {
