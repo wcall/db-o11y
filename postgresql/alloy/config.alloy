@@ -9,7 +9,7 @@ livedebugging {
 
 prometheus.exporter.postgres "postgresql_server" {
   data_source_names = [sys.env("POSTGRES_DSN")]
-  enabled_collectors = ["stat_statements"]
+  enabled_collectors = ["stat_statements", "database", "locks", "replication", "replication_slot", "stat_bgwriter", "stat_database", "stat_user_tables", "statio_user_tables", "wal"]
 
   autodiscovery {
     enabled = true
