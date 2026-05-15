@@ -23,7 +23,7 @@ database_observability.postgres "postgresql_server" {
   targets           = prometheus.exporter.postgres.postgresql_server.targets
 
   // I added this part based on email suggestion
-  enable_collectors = ["query_details", "schema_details", "query_samples", "explain_plans"]
+  enable_collectors = ["query_details", "schema_details", "query_samples", "explain_plans", "logs"]
 
   query_samples {
     disable_query_redaction = true

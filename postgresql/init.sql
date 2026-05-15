@@ -3,6 +3,7 @@
 
 -- Enable pg_stat_statements for query monitoring
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+CREATE EXTENSION IF NOT EXISTS pg_buffercache;
 
 -- Create application schema and sample data
 CREATE SCHEMA IF NOT EXISTS wcall;
@@ -39,10 +40,6 @@ GRANT pg_read_all_data TO "db-o11y";
 -- Exclude the monitoring user's own queries from pg_stat_statements
 ALTER ROLE "db-o11y" SET pg_stat_statements.track = 'none';
 
--- Required log format for Database Observability logs processing
-ALTER SYSTEM SET log_line_prefix = '%m:%r:%u@%d:[%p]:%l:%e:%s:%v:%x:%c:%q%a:';
-SELECT pg_reload_conf();
-
 -- Grant schema permissions back in super_awesome_application
 \connect super_awesome_application
 
@@ -65,4 +62,4 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO wcall;
 GRANT USAGE ON SCHEMA wcall TO wcall;
 GRANT SELECT ON ALL TABLES IN SCHEMA wcall TO wcall;
 -- Track all queries made by the wcall role from pg_stat_statements
-ALTER ROLE "wcall" SET pg_stat_statements.track = 'all';
+ALTER USER "wcall" SET pg_stat_statements.track = 'all';

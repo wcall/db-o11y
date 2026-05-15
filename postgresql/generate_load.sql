@@ -99,7 +99,7 @@ WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database());
 SELECT version(), pg_postmaster_start_time();
 
 -- ============================================================
--- Intentional errors (3 of 30 = 10%)
+-- Intentional errors (4 of 34 = 11.76%)
 -- ============================================================
 
 -- ERROR 1: relation does not exist
@@ -110,6 +110,9 @@ SELECT companyid / 0 AS bad_math FROM wcall.company LIMIT 1;
 
 -- ERROR 3: invalid type cast
 SELECT 'not_a_number'::integer AS bad_cast;
+
+-- ERROR 4: invalid cast
+SELECT * FROM wcall.nonexistent_table;
 
 -- ============================================================
 -- Complex / slow queries (3 of 30 = 10%)
