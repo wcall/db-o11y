@@ -9,7 +9,7 @@ livedebugging {
 
 prometheus.exporter.postgres "postgresql_server" {
   data_source_names = [sys.env("POSTGRES_DSN")]
-  enabled_collectors = ["stat_statements"]
+  enabled_collectors = ["stat_statements", "database", "locks", "replication", "replication_slot", "stat_bgwriter", "stat_database", "stat_user_tables", "statio_user_tables", "wal"]
 
   autodiscovery {
     enabled = true
@@ -17,12 +17,10 @@ prometheus.exporter.postgres "postgresql_server" {
 }
 
 database_observability.postgres "postgresql_server" {
-  // data_source_name  = local.file.mysql_secret_db.content
   data_source_name = sys.env("POSTGRES_DSN")
   forward_to        = [loki.relabel.database_observability_postgresql_server.receiver]
   targets           = prometheus.exporter.postgres.postgresql_server.targets
 
-  // I added this part based on email suggestion
   enable_collectors = ["query_details", "schema_details", "query_samples", "explain_plans", "logs"]
 
   query_samples {
@@ -52,63 +50,6 @@ discovery.docker "logs_integrations_docker" {
 loki.source.docker "postgres_logs" {
   host       = "unix:///var/run/docker.sock"
   targets    = discovery.docker.logs_integrations_docker.targets
-  //forward_to = [loki.process.postgres_logs.receiver]
-  forward_to = [database_observability.postgres.postgresql_server.logs_receiver]
-  //relabel_rules = loki.relabel.postgres_docker_logs.rules
-}
-
-loki.relabel "postgres_docker_logs" {
-  forward_to = [loki.process.postgres_logs.receiver]
-
-  rule {
-    source_labels = ["__meta_docker_container_name"]
-    regex         = "/(db-o11y-postgres)"
-    action        = "keep"
-  }
-
-  rule {
-    source_labels = ["__meta_docker_container_name"]
-    target_label  = "container"
-    regex         = "/(.*)"
-    replacement   = "$1"
-  }
-
-  rule {
-    target_label = "job"
-    // replacement  = "integrations/postgres_exporter"
-    replacement  = "integrations/db-o11y"
-  }
-
-  rule {
-    target_label = "instance"
-    replacement  = "postgresql-test-db"
-  }
-}
-
-loki.process "postgres_logs" {
-  forward_to = [loki.write.logs_service.receiver]
-
-  stage.regex {
-    expression = "^(?P<timestamp>\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3} \\w+).*: (?P<level>LOG|ERROR|FATAL|PANIC|WARNING|NOTICE|INFO|DEBUG):\\s+(?P<message>.*)"
-  }
-
-  stage.labels {
-    values = {
-      level = "",
-    }
-  }
-}
-
-local.file_match "postgres_log_files" {
-  path_targets = [{
-    __path__ = "/var/log/postgresql/postgresql-*.log",
-    job      = "postgres_logs",
-  }]
-  sync_period = "5s"
-}
-
-loki.source.file "database_observability_postgres_postgresql_server" {
-  targets    = local.file_match.postgres_log_files.targets
   forward_to = [database_observability.postgres.postgresql_server.logs_receiver]
 }
 
