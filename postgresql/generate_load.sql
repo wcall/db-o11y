@@ -111,7 +111,7 @@ SELECT companyid / 0 AS bad_math FROM wcall.company LIMIT 1;
 -- ERROR 3: invalid type cast
 SELECT 'not_a_number'::integer AS bad_cast;
 
--- ERROR 4: invalid cast
+-- ERROR 4: invalid table name
 SELECT * FROM wcall.nonexistent_table;
 
 -- ============================================================
