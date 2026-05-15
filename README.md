@@ -88,6 +88,7 @@ cp .env.example .env
 ```
 
 Edit `.env` and update:
+- `POSTGRES_DSN` - PostgreSQL connection string for the `db-o11y` monitoring user (e.g. `postgres://db-o11y:<password>@postgres:5432/super_awesome_application?sslmode=disable`)
 - `GCLOUD_PROMETHEUS_URL` - Your Grafana Cloud Prometheus endpoint
 - `GCLOUD_PROMETHEUS_USERNAME` - Your Prometheus username
 - `GCLOUD_PROMETHEUS_PASSWORD` - Your Prometheus API key
