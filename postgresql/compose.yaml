@@ -15,7 +15,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - postgres_logs:/var/log/postgresql
+      - postgres_logs:/var/log/postgresql:ro
       - ./postgresql.conf:/etc/postgresql/postgresql.conf
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     entrypoint: ["/bin/sh", "-c", "chmod 777 /var/log/postgresql && exec docker-entrypoint.sh \"$@\"", "sh"]

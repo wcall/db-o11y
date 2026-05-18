@@ -40,16 +40,16 @@ loki.relabel "database_observability_postgresql_server" {
   }
 }
 
-// Collect docker logs
-discovery.docker "logs_integrations_docker" {
-    host             = "unix:///var/run/docker.sock"
-    refresh_interval = "5s"
+// Tail PostgreSQL log files from the shared postgres_logs volume
+local.file_match "database_observability_postgres_postgresql_server" {
+  path_targets = [{
+    __path__ = "/var/log/postgresql/postgresql-*.log",
+    job      = "postgres_logs",
+  }]
 }
 
-// Collect PostgreSQL logs from Docker container logs instead of log files
-loki.source.docker "postgres_logs" {
-  host       = "unix:///var/run/docker.sock"
-  targets    = discovery.docker.logs_integrations_docker.targets
+loki.source.file "database_observability_postgres_postgresql_server" {
+  targets    = local.file_match.database_observability_postgres_postgresql_server.targets
   forward_to = [database_observability.postgres.postgresql_server.logs_receiver]
 }
 
