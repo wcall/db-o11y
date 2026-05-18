@@ -51,7 +51,6 @@ services:
       - POSTGRES_DSN=${POSTGRES_DSN}
     volumes:
       - ./alloy/config.alloy:/etc/alloy/config.alloy
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - alloy_data:/var/lib/alloy/data
       - postgres_logs:/var/log/postgresql:ro
     ports:
