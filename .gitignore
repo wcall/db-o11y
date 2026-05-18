@@ -42,3 +42,6 @@ CLAUDE.md
 *.tmp
 *.bak
 *.backup
+
+# Installer packages
+*.pkg
