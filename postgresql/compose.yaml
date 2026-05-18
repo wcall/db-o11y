@@ -15,7 +15,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - postgres_logs:/var/log/postgresql:ro
+      - postgres_logs:/var/log/postgresql
       - ./postgresql.conf:/etc/postgresql/postgresql.conf
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     entrypoint: ["/bin/sh", "-c", "chmod 777 /var/log/postgresql && exec docker-entrypoint.sh \"$@\"", "sh"]
@@ -53,6 +53,7 @@ services:
       - ./alloy/config.alloy:/etc/alloy/config.alloy
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - alloy_data:/var/lib/alloy/data
+      - postgres_logs:/var/log/postgresql:ro
     ports:
       - "12345:12345"
     command: run --server.http.listen-addr=0.0.0.0:12345 --stability.level=public-preview --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
