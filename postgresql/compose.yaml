@@ -39,7 +39,8 @@ services:
   alloy:
     image: grafana/alloy:v1.16.1
     container_name: db-o11y-alloy
-    # user: "root"
+    security_opt:
+      - label=disable
     environment:
       - GCLOUD_PROMETHEUS_URL=${GCLOUD_PROMETHEUS_URL}
       - GCLOUD_PROMETHEUS_USERNAME=${GCLOUD_PROMETHEUS_USERNAME}
