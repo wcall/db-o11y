@@ -553,6 +553,7 @@ docker pull grafana/alloy:v1.15.0
 docker run --rm \
   --network host \
   -v "$(pwd)/alloy:/etc/alloy" \
+  -e POSTGRES_DSN \
   -e GCLOUD_PROMETHEUS_URL \
   -e GCLOUD_PROMETHEUS_USERNAME \
   -e GCLOUD_PROMETHEUS_PASSWORD \
