@@ -477,6 +477,8 @@ npm run dev
 
 Backend runs at `http://localhost:3001`.
 
+The `start`/`dev` scripts preload [`instrumentation.mjs`](app/backend/instrumentation.mjs) via `node --import`, which initializes OpenTelemetry and enables **SQLCommenter** on the `pg` client. Every query is tagged with a `traceparent` SQL comment, and request/query spans are exported over OTLP to `OTEL_EXPORTER_OTLP_ENDPOINT` (Alloy, default `http://host.docker.internal:4318`). Set this in `alloy/setenv.sh` or the app `.env`. If the endpoint is unset, the app still runs and the `traceparent` comment still appears in query samples — only the export to Tempo is skipped.
+
 ### Start the frontend
 
 ```bash
@@ -508,7 +510,7 @@ Frontend runs at `http://localhost:3000`. The Vite dev server proxies `/api/*` t
 
 ## Running Grafana Alloy (Database Observability)
 
-`alloy/config.alloy` configures `database_observability.postgres` and `prometheus.exporter.postgres` to collect query metrics and slow query logs, forwarding them to Grafana Cloud.
+`alloy/config.alloy` configures `database_observability.postgres` and `prometheus.exporter.postgres` to collect query metrics and slow query logs, forwarding them to Grafana Cloud. It also runs an `otelcol.receiver.otlp` (ports 4317/4318) that receives trace spans from the backend app and forwards them to Grafana Cloud Tempo via `otelcol.exporter.otlphttp`. This is what lets DB Observability query samples link to their originating trace (see [Trace ↔ query-sample linkage](#trace--query-sample-linkage)).
 
 ### 1 — Start the SSM tunnel (port 5433)
 
@@ -536,9 +538,10 @@ postgres://db-o11y:<monitoring-user-password>@host.docker.internal:5433/wcallrds
 
 ### 3 — Set Grafana Cloud env vars
 
-Fill in `alloy/setenv.sh` (gitignored) and source it:
+Copy the template to `alloy/setenv.sh` (gitignored), fill in real values — each variable has a comment explaining where to obtain it — and source it. In addition to the Prometheus and Loki credentials, set the Tempo credentials (`GCLOUD_TEMPO_URL`, `GCLOUD_TEMPO_USERNAME`, `GCLOUD_TEMPO_PASSWORD`) for the same Grafana Cloud stack so traces can be forwarded:
 
 ```bash
+cp alloy/setenv.sh.example alloy/setenv.sh   # then edit in your values
 source alloy/setenv.sh
 ```
 
@@ -556,11 +559,31 @@ docker run --rm \
   -e GCLOUD_LOKI_URL \
   -e GCLOUD_LOKI_USERNAME \
   -e GCLOUD_LOKI_PASSWORD \
+  -e GCLOUD_TEMPO_URL \
+  -e GCLOUD_TEMPO_USERNAME \
+  -e GCLOUD_TEMPO_PASSWORD \
   grafana/alloy:v1.15.0 \
   run --stability.level=public-preview /etc/alloy/config.alloy
 ```
 
-Alloy connects to `localhost:5433` (tunnelled to RDS), scrapes `pg_stat_statements`, and streams query samples and explain plans to Grafana Cloud.
+Alloy connects to `localhost:5433` (tunnelled to RDS), scrapes `pg_stat_statements`, and streams query samples and explain plans to Grafana Cloud. With `--network host`, the OTLP receiver also listens on `4317`/`4318` for spans from the backend app and forwards them to Grafana Cloud Tempo.
+
+---
+
+## Trace ↔ query-sample linkage
+
+The backend uses OpenTelemetry with **SQLCommenter** so DB Observability query samples carry a `traceparent` that links back to the originating trace in Tempo.
+
+How the pieces fit together:
+
+1. [`app/backend/instrumentation.mjs`](app/backend/instrumentation.mjs) is preloaded via `node --import` (configured in `package.json` scripts). It must load before `pg`, so the instrumentation is installed via the preload rather than a top-of-file import.
+2. `@opentelemetry/instrumentation-pg` is configured with `addSqlCommenterCommentToQueries: true`. Each statement issued through the pool gets a trailing comment, e.g. `SELECT ... /*traceparent='00-<traceid>-<spanid>-01'*/`, built from the active request span (created by the HTTP/Express instrumentation).
+3. Alloy's `database_observability.postgres` `query_samples` collector reads that comment (preserved because `disable_query_redaction = true`) and exposes the `traceparent` on the sample.
+4. The app exports its spans over OTLP → Alloy → Grafana Cloud Tempo. In Grafana, a query sample's `traceparent` becomes a clickable link that opens the matching trace.
+
+> **Prerequisite for click-through:** the Tempo credentials in `alloy/setenv.sh` must be filled in. Without them the `traceparent` comment still appears in samples, but the link won't resolve because the span was never stored.
+
+To verify: run the backend and Alloy, generate traffic (e.g. `GET /api/companies` or a k6 test), then open a recent query sample in DB Observability — confirm the SQL carries a non-zero `traceparent` and clicking it opens the trace (`service.name=wcall-rds-backend`).
 
 ---
 
@@ -614,6 +637,7 @@ AWS-RDS-PostgreSQL/
 │   ├── backend/
 │   │   ├── package.json
 │   │   ├── .env.example
+│   │   ├── instrumentation.mjs # OpenTelemetry bootstrap (preloaded; enables SQLCommenter)
 │   │   ├── db.js               # pg connection pool
 │   │   ├── server.js           # Express app + middleware
 │   │   └── routes/
@@ -630,8 +654,9 @@ AWS-RDS-PostgreSQL/
 │               ├── InsertPage.jsx   # Forms for company and product insertion
 │               └── QueryPage.jsx    # Tables for companies and JOIN query
 ├── alloy/
-│   ├── config.alloy            # Grafana Alloy config for database observability
-│   └── setenv.sh               # Grafana Cloud credentials (gitignored — fill in locally)
+│   ├── config.alloy            # Alloy config: DB observability + OTLP→Tempo traces pipeline
+│   ├── setenv.sh.example       # Credentials template (committed) — copy to setenv.sh
+│   └── setenv.sh               # Grafana Cloud credentials incl. Tempo (gitignored — fill in locally)
 ├── k6/
 │   ├── utils.js                # BASE_URL, random name, helpers
 │   ├── checks.js               # Reusable k6 check functions

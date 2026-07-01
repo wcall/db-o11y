@@ -1,0 +1,41 @@
+# Alloy environment — copy to setenv.sh and fill in real values, then `source alloy/setenv.sh`.
+# setenv.sh is gitignored; this .example file is the committed template.
+
+# PostgreSQL DSN the Alloy collectors connect to. Use the monitoring user
+# (db-o11y) created by init/02-monitoring.sql, with the monitoring_user_password
+# you passed to `terraform apply`. host.docker.internal:5433 reaches the SSM
+# tunnel running on the host (localhost:5433 -> RDS:5432). Keep sslmode=require.
+export POSTGRES_DSN=postgres://db-o11y:<monitoring-user-password>@host.docker.internal:5433/wcallrdspostgresql17?sslmode=require
+
+# --- Grafana Cloud credentials ---
+# All three signals (metrics/logs/traces) should target the SAME stack.
+# In Grafana Cloud: Home > Stacks > <your stack>. For each data source below,
+# click its "Details / Send <Metrics|Logs|Traces>" page to read the URL and
+# username (instance/user ID), and generate a token under
+# "Generate now" / Account > Access Policies (scopes: metrics:write, logs:write,
+# traces:write).
+
+# Prometheus remote_write — from the stack's "Prometheus" / "Send Metrics" page.
+# URL ends in /api/prom/push; username is the numeric metrics instance ID.
+export GCLOUD_PROMETHEUS_URL=https://prometheus-<region>.grafana.net/api/prom/push
+export GCLOUD_PROMETHEUS_USERNAME=<prometheus-instance-id>
+export GCLOUD_PROMETHEUS_PASSWORD=<grafana-cloud-token-with-metrics-write>
+
+# Loki — from the stack's "Loki" / "Send Logs" page.
+# URL ends in /loki/api/v1/push; username is the numeric logs instance ID.
+export GCLOUD_LOKI_URL=https://logs-prod-<NN>.grafana.net/loki/api/v1/push
+export GCLOUD_LOKI_USERNAME=<loki-instance-id>
+export GCLOUD_LOKI_PASSWORD=<grafana-cloud-token-with-logs-write>
+
+# Tempo (traces) — from the stack's "Tempo" / "Send Traces" page.
+# Use the OTLP endpoint: either the Tempo OTLP URL (…/tempo) or the stack's
+# OTLP gateway (https://otlp-gateway-<region>.grafana.net/otlp). username is the
+# numeric Tempo/traces instance ID.
+export GCLOUD_TEMPO_URL=<https://tempo-prod-XX-prod-<region>.grafana.net/tempo OR https://otlp-gateway-<region>.grafana.net/otlp>
+export GCLOUD_TEMPO_USERNAME=<tempo-instance-id>
+export GCLOUD_TEMPO_PASSWORD=<grafana-cloud-token-with-traces-write>
+
+# --- Backend app trace export ---
+# Where the Node backend ships OTLP spans. Points at Alloy's OTLP/HTTP receiver.
+# host.docker.internal lets the host-run app reach Alloy in Docker (--network host).
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4318

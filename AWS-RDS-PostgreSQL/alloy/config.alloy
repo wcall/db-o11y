@@ -117,3 +117,31 @@ loki.write "logs_service" {
     }
   }
 }
+
+// Traces pipeline: receive OTLP spans from the backend app (SQLCommenter
+// emits the traceparent on each query) and forward them to Grafana Cloud Tempo
+// so DB Observability query samples can resolve to the matching trace.
+otelcol.receiver.otlp "traces" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces = [otelcol.exporter.otlphttp.tempo.input]
+  }
+}
+
+otelcol.auth.basic "tempo" {
+  username = sys.env("GCLOUD_TEMPO_USERNAME")
+  password = sys.env("GCLOUD_TEMPO_PASSWORD")
+}
+
+otelcol.exporter.otlphttp "tempo" {
+  client {
+    endpoint = sys.env("GCLOUD_TEMPO_URL")
+    auth     = otelcol.auth.basic.tempo.handler
+  }
+}
