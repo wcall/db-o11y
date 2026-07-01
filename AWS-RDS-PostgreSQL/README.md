@@ -475,7 +475,7 @@ npm install
 npm run dev
 ```
 
-Backend runs at `http://localhost:3001`.
+Backend runs at `http://localhost:3011`.
 
 The `start`/`dev` scripts preload [`instrumentation.mjs`](app/backend/instrumentation.mjs) via `node --import`, which initializes OpenTelemetry and enables **SQLCommenter** on the `pg` client. Every query is tagged with a `traceparent` SQL comment, and request/query spans are exported over OTLP to `OTEL_EXPORTER_OTLP_ENDPOINT` (Alloy, default `http://host.docker.internal:4318`). Set this in `alloy/setenv.sh` or the app `.env`. If the endpoint is unset, the app still runs and the `traceparent` comment still appears in query samples — only the export to Tempo is skipped.
 
@@ -589,7 +589,7 @@ To verify: run the backend and Alloy, generate traffic (e.g. `GET /api/companies
 
 ## Running k6 Load Tests
 
-Requires [k6](https://grafana.com/docs/k6/latest/set-up/install-k6/) and the backend running on `http://localhost:3001`.
+Requires [k6](https://grafana.com/docs/k6/latest/set-up/install-k6/) and the backend running on `http://localhost:3011`.
 
 ### insert-test.js — short-lived (~7 min)
 
@@ -618,7 +618,7 @@ K6_NO_USAGE_REPORT=true k6 run k6/mixed-test.js
 ### Custom base URL
 
 ```bash
-K6_NO_USAGE_REPORT=true k6 run -e BASE_URL=http://localhost:3001 k6/insert-test.js
+K6_NO_USAGE_REPORT=true k6 run -e BASE_URL=http://localhost:3011 k6/insert-test.js
 ```
 
 ---

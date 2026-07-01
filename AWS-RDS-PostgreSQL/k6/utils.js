@@ -1,6 +1,6 @@
 import { check } from 'k6';
 
-export const BASE_URL = __ENV.BASE_URL || 'http://localhost:3001';
+export const BASE_URL = __ENV.BASE_URL || 'http://localhost:3011';
 
 export function checkUsageReport() {
   if (!__ENV.K6_NO_USAGE_REPORT) {
